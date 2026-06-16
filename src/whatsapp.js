@@ -78,8 +78,17 @@ function extractWebhookMessage(body = {}) {
     message.body ||
     payload.text ||
     '';
+    
   const pushName = message.pushName || payload.pushName || message.notifyName || '';
-  const senderJid = key.participant || message.participant || payload.participant || remoteJid;
+  
+  // Extração do número com desvio do LID de privacidade do WhatsApp
+  let senderJid = key.participant || message.participant || payload.participant || remoteJid;
+  const altJid = key.participantAlt || message.participantAlt || payload.participantAlt;
+
+  if (senderJid && senderJid.includes('@lid') && altJid) {
+    senderJid = altJid;
+  }
+
   const telefone = onlyDigits(senderJid.split('@')[0]);
   const isGroup = remoteJid.endsWith('@g.us') || remoteJid === process.env.WHATSAPP_GROUP_ID;
 
