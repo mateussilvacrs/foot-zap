@@ -63,9 +63,9 @@ function mensagemConvocacao() {
 function mensagemAjuda(isAdmin = false) {
   const base = [
     '⚽ Comandos do Futebol Bot',
-    '/confirmar sim',
-    '/confirmar nao',
-    '/querojogar',
+    'Mensalistas: /confirmar sim',
+    'Mensalistas: /confirmar nao',
+    'Avulsos: /querojogar',
     '/lista',
     '/ajuda'
   ];
