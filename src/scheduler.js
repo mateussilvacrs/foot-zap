@@ -14,7 +14,7 @@ function startScheduler({ db, whatsapp, sheets }) {
       '0 9 * * 1',
       async () => {
         try {
-          db.novaSemana();
+        //  db.novaSemana();
           await whatsapp.sendGroupMessage(mensagemConvocacao());
         } catch (error) {
           db.log('Erro no cron de convocacao', { error: error.message });

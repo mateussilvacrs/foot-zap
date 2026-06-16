@@ -323,7 +323,11 @@
         $('confirmados').textContent = resumo.confirmados.length;
         $('ausentes').textContent = resumo.ausentes.length;
         $('vagas').textContent = resumo.vagasRestantes;
-        $('rodada').textContent = `Rodada ${data.rodada || '-'}`;
+        let dataFormatada = data.rodada || '-';
+        if (dataFormatada !== '-') {
+          dataFormatada = dataFormatada.split('-').reverse().join('/');
+        }
+        $('rodada').textContent = `Rodada ${dataFormatada}`;
         $('aberto').textContent = data.aberto ? 'Confirmações abertas' : 'Confirmações fechadas';
         $('updated').textContent = new Date().toLocaleTimeString('pt-BR');
 
