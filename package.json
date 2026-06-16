@@ -1,0 +1,21 @@
+{
+  "name": "futebol-bot",
+  "version": "1.0.0",
+  "description": "Chatbot de WhatsApp para gerenciar partidas semanais de futebol.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node --check src/index.js && node --check src/database.js && node --check src/handlers.js && node --check src/whatsapp.js && node --check src/sheets.js && node --check src/scheduler.js && node --check src/routes.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "googleapis": "^173.0.0",
+    "node-cron": "^4.2.1"
+  },
+  "license": "MIT"
+}

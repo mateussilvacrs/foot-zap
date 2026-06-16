@@ -1,0 +1,124 @@
+{
+  "rodada": "2026-06-17",
+  "aberto": false,
+  "mensalistas": [],
+  "avulsos": [],
+  "configuracoes": {
+    "totalVagas": 20,
+    "totalMensalistas": 17,
+    "valorAvulso": 20
+  },
+  "logs": [
+    {
+      "at": "2026-06-16T19:32:03.005Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/fechar"
+      }
+    },
+    {
+      "at": "2026-06-16T19:32:03.004Z",
+      "message": "Vagas liberadas para avulsos",
+      "meta": {}
+    },
+    {
+      "at": "2026-06-16T19:32:03.003Z",
+      "message": "Rodada fechada",
+      "meta": {}
+    },
+    {
+      "at": "2026-06-16T19:32:02.488Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/fechar"
+      }
+    },
+    {
+      "at": "2026-06-16T19:32:02.487Z",
+      "message": "Vagas liberadas para avulsos",
+      "meta": {}
+    },
+    {
+      "at": "2026-06-16T19:32:02.485Z",
+      "message": "Rodada fechada",
+      "meta": {}
+    },
+    {
+      "at": "2026-06-16T19:32:01.162Z",
+      "message": "Nova semana criada",
+      "meta": {
+        "rodada": "2026-06-17"
+      }
+    },
+    {
+      "at": "2026-06-16T19:32:00.432Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/convocacao"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:54.060Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Telefone e nome sao obrigatorios.",
+        "path": "/api/mensalista"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:52.999Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/mensagem"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:52.714Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/mensagem"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:51.043Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/mensagem"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:46.166Z",
+      "message": "Erro HTTP",
+      "meta": {
+        "error": "Destino do WhatsApp nao configurado.",
+        "path": "/api/acao/resumo"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:44.312Z",
+      "message": "Nova semana criada",
+      "meta": {
+        "rodada": "2026-06-17"
+      }
+    },
+    {
+      "at": "2026-06-16T19:31:04.109Z",
+      "message": "Rodada aberta",
+      "meta": {}
+    },
+    {
+      "at": "2026-06-16T19:30:47.814Z",
+      "message": "Scheduler iniciado",
+      "meta": {
+        "timezone": "America/Sao_Paulo",
+        "jobs": 4
+      }
+    }
+  ]
+}
