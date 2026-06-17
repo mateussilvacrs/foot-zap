@@ -18,6 +18,23 @@ class Database {
     };
   }
 
+  resumo() {
+    const mensalistas = this.state.mensalistas || [];
+    const confirmados = mensalistas.filter(m => m.status === 'sim');
+    const ausentes = mensalistas.filter(m => m.status === 'nao');
+    const pendentes = mensalistas.filter(m => m.status === 'pendente');
+    const avulsos = this.state.avulsos || [];
+    
+    return {
+      totalJogadores: confirmados.length + avulsos.length,
+      confirmados,
+      ausentes,
+      pendentes,
+      avulsos,
+      vagasRestantes: Math.max(0, this.state.configuracoes.totalVagas - (confirmados.length + avulsos.length))
+    };
+  }
+
   save() { fs.writeFileSync(DATA_FILE, JSON.stringify(this.state, null, 2)); }
   getState() { return this.state; }
 
