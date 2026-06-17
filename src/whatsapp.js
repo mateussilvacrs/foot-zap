@@ -35,9 +35,11 @@ function extractWebhookMessage(body = {}) {
   const message = payload.message || payload.messages?.[0] || payload;
   const key = message.key || payload.key || {};
   
-  // Captura o telefone garantindo a limpeza completa
-  const rawJid = key.participantAlt || key.participant || payload.participant || key.remoteJid || '';
-  const telefone = onlyDigits(rawJid.split('@')[0]);
+  // A MÁGICA: O participantAlt é o número real. Vamos usar ele sempre que existir!
+  const realNumber = key.participantAlt || payload.participantAlt;
+  const senderJid = realNumber || key.participant || payload.participant || key.remoteJid || '';
+
+  const telefone = onlyDigits(senderJid.split('@')[0]);
 
   return {
     text: (message.message?.conversation || message.conversation || message.text || '').trim(),

@@ -93,33 +93,41 @@ app.post('/api/acao/nova-semana', authMiddleware, (req, res) => {
 });
 
 // WEBHOOK
-// ... (seu código de rotas permanece o mesmo) ...
-
+// WEBHOOK CORRIGIDO
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
   const pollUpdate = req.body.data?.message?.pollUpdateMessage;
 
+  // Atualização automática via enquete
   if (pollUpdate && pollUpdate.pollUpdates) {
-    const telefone = message.telefone; // Já vem limpo pelo whatsapp.js
+    const telefoneVotante = message.telefone;
     
-    // Verificamos se o telefone do Webhook está em algum dos arrays de eleitores
-    const votouSim = pollUpdate.pollUpdates[0]?.voters?.some(v => onlyDigits(v) === telefone) || false;
-    const votouNao = pollUpdate.pollUpdates[1]?.voters?.some(v => onlyDigits(v) === telefone) || false;
+    console.log(`Diagnóstico: Bot tentando atualizar o telefone: ${telefoneVotante}`);
+
+    // Verifica os votos (pollUpdates[0] = Sim, [1] = Não)
+    const votouSim = pollUpdate.pollUpdates[0]?.voters?.some(v => v.includes(telefoneVotante)) || false;
+    const votouNao = pollUpdate.pollUpdates[1]?.voters?.some(v => v.includes(telefoneVotante)) || false;
     
-    const status = votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente');
+    let status = 'pendente';
+    if (votouSim) status = 'sim';
+    else if (votouNao) status = 'nao';
     
-    // ATUALIZAÇÃO FORÇADA: Ignora se era 'pendente' ou não
-    const sucesso = db.updatePlayerStatus(telefone, status);
+    // CORREÇÃO: Usando a variável correta 'telefoneVotante'
+    const sucesso = db.updatePlayerStatus(telefoneVotante, status);
     
-    console.log(`[Webhook] Jogador ${telefone} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha (Telefone não cadastrado)'}`);
+    console.log(`[Webhook] Jogador ${telefoneVotante} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha (Telefone não cadastrado no estado.json)'}`);
     
     return res.json({ ok: true });
   }
 
   // Comandos de texto
   if (!message.fromMe && message.text.startsWith('/')) {
-    const reply = await handleCommand(message, { db, whatsapp });
-    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
+    try {
+      const reply = await handleCommand(message, services);
+      if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
+    } catch (e) { 
+      console.error("Erro ao processar comando:", e); 
+    }
   }
   res.json({ ok: true });
 });
