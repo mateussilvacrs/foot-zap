@@ -9,15 +9,21 @@ function requiredConfig() {
   };
 }
 
-async function postEvolution(path, payload) {
+async function postEvolution(path, payload, method = 'POST') {
   const { apiUrl, apiKey } = requiredConfig();
   const response = await fetch(`${apiUrl.replace(/\/$/, '')}${path}`, {
-    method: 'POST',
+    method: method,
     headers: { 'Content-Type': 'application/json', apikey: apiKey, Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(payload)
+    body: payload ? JSON.stringify(payload) : null
   });
   if (!response.ok) throw new Error(`API Error: ${await response.text()}`);
   return response.json();
+}
+
+async function getPollStatus(messageId) {
+  const { instance } = requiredConfig();
+  const data = await postEvolution(`/message/find/${instance}?messageId=${messageId}`, null, 'GET');
+  return data.message.pollUpdateMessage;
 }
 
 async function sendPoll(number, name, optionsArray) {
@@ -34,12 +40,8 @@ function extractWebhookMessage(body = {}) {
   const payload = body.data || body;
   const message = payload.message || payload.messages?.[0] || payload;
   const key = message.key || payload.key || {};
-  
-  // A MÁGICA: O participantAlt é o número real. Vamos usar ele sempre que existir!
-  const realNumber = key.participantAlt || payload.participantAlt;
-  const senderJid = realNumber || key.participant || payload.participant || key.remoteJid || '';
-
-  const telefone = onlyDigits(senderJid.split('@')[0]);
+  const realNumber = key.participantAlt || payload.participantAlt || key.participant || payload.participant || key.remoteJid || '';
+  const telefone = onlyDigits(realNumber.split('@')[0]);
 
   return {
     text: (message.message?.conversation || message.conversation || message.text || '').trim(),
@@ -50,4 +52,4 @@ function extractWebhookMessage(body = {}) {
   };
 }
 
-module.exports = { sendText, sendPoll, extractWebhookMessage };
+module.exports = { sendText, sendPoll, extractWebhookMessage, getPollStatus };

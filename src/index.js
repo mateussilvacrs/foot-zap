@@ -93,44 +93,40 @@ app.post('/api/acao/nova-semana', authMiddleware, (req, res) => {
 });
 
 // WEBHOOK
-// WEBHOOK CORRIGIDO
+
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
   const pollUpdate = req.body.data?.message?.pollUpdateMessage;
 
-  // Atualização automática via enquete
-  if (pollUpdate && pollUpdate.pollUpdates) {
-    const telefoneVotante = message.telefone;
+  if (pollUpdate) {
+    console.log(`Diagnóstico: Enquete atualizada para o telefone: ${message.telefone}`);
     
-    console.log(`Diagnóstico: Bot tentando atualizar o telefone: ${telefoneVotante}`);
-
-    // Verifica os votos (pollUpdates[0] = Sim, [1] = Não)
-    const votouSim = pollUpdate.pollUpdates[0]?.voters?.some(v => v.includes(telefoneVotante)) || false;
-    const votouNao = pollUpdate.pollUpdates[1]?.voters?.some(v => v.includes(telefoneVotante)) || false;
-    
-    let status = 'pendente';
-    if (votouSim) status = 'sim';
-    else if (votouNao) status = 'nao';
-    
-    // CORREÇÃO: Usando a variável correta 'telefoneVotante'
-    const sucesso = db.updatePlayerStatus(telefoneVotante, status);
-    
-    console.log(`[Webhook] Jogador ${telefoneVotante} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha (Telefone não cadastrado no estado.json)'}`);
-    
+    try {
+      // Busca o estado real na API caso o webhook venha vazio
+      const pollData = await whatsapp.getPollStatus(pollUpdate.pollCreationMessageKey.id);
+      
+      const votouSim = pollData.pollUpdates[0]?.voters?.some(v => v.includes(message.telefone));
+      const votouNao = pollData.pollUpdates[1]?.voters?.some(v => v.includes(message.telefone));
+      
+      const status = votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente');
+      const sucesso = db.updatePlayerStatus(message.telefone, status);
+      
+      console.log(`[Webhook] Jogador ${message.telefone} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha'}`);
+    } catch (e) {
+      console.error("Erro ao consultar estado da enquete:", e);
+    }
     return res.json({ ok: true });
   }
 
   // Comandos de texto
   if (!message.fromMe && message.text.startsWith('/')) {
-    try {
-      const reply = await handleCommand(message, services);
-      if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
-    } catch (e) { 
-      console.error("Erro ao processar comando:", e); 
-    }
+    const reply = await handleCommand(message, services);
+    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
   }
   res.json({ ok: true });
 });
+
+// ... (fim do arquivo)
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
