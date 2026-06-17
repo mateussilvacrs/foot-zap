@@ -11,11 +11,6 @@ const services = { db, whatsapp };
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
-console.log("Iniciando o servidor...");
-
-
-
-// Rota do Webhook com prioridade no SENDER
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
   const senderPhone = onlyDigits(req.body.data?.sender?.split('@')[0] || '');
@@ -38,17 +33,10 @@ app.post('/webhook', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Rotas Administrativas
-app.post('/api/poll/create', async (req, res) => {
-  try {
-    await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
-    db.setPoll(req.body.question);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/acao/nova-semana', (req, res) => { db.novaSemana(); res.json({ ok: true }); });
+// Rotas API
 app.get('/api/status', (req, res) => res.json({ rodada: db.getState().rodada, aberto: db.getState().aberto, resumo: db.resumo(), mensalistas: db.getState().mensalistas, avulsos: db.getState().avulsos }));
-app.patch('/api/player/:telefone/status', (req, res) => { db.updatePlayerStatus(req.params.telefone, req.body.status); res.json({ ok: true }); });
+app.post('/api/acao/nova-semana', (req, res) => { db.novaSemana(); res.json({ ok: true }); });
+app.post('/api/mensalista', (req, res) => { db.addMensalista(req.body.telefone, req.body.nome); res.json({ ok: true }); });
 
-app.listen(3000, () => console.log('Bot rodando na porta 3000'));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Futebol Bot rodando na porta ${port}`));
