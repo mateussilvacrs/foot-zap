@@ -149,7 +149,64 @@
         return '';
       }
 
+// ... substitua a sua função load atual por esta:
+
 async function load() {
+  try {
+    const data = await request('/api/status');
+    const resumo = data.resumo;
+    const totalVagas = data.configuracoes?.totalVagas || 20; 
+    
+    $('totalJogadores').textContent = resumo.totalJogadores;
+    $('confirmados').textContent = resumo.confirmados.length;
+    $('avulsosConfirmados').textContent = resumo.avulsos.length;
+    $('vagas').textContent = resumo.vagasRestantes;
+    $('vagasOcupadas').textContent = resumo.totalJogadores;
+    $('vagasTotal').textContent = totalVagas;
+    $('totalVagasInput').value = totalVagas;
+    
+    // Status da Enquete
+    if(resumo.poll && resumo.poll.active) {
+      $('pollStatus').textContent = '🟢 Aberta (' + resumo.poll.question + ')';
+      $('pollStatus').className = 'poll-status';
+    } else {
+      $('pollStatus').textContent = '🔴 Fechada ou Não Iniciada';
+      $('pollStatus').className = 'poll-status fechada';
+    }
+    
+    $('abertoStatus').textContent = data.aberto ? '🟢 Liberada para /querojogar' : '🔴 Bloqueada (Só mensalistas)';
+    $('abertoStatus').style.color = data.aberto ? 'green' : 'red';
+    $('updated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+
+    // Mapeamento das tabelas
+    $('mensalistas').innerHTML = data.mensalistas.map(j => `
+      <tr>
+        <td>${j.nome}</td><td>${j.telefone}</td>
+        <td><span class="status ${getStatusClass(j.status)}">${j.status || 'pendente'}</span></td>
+        <td>
+          <button class="secondary small" onclick="setStatus('${j.telefone}', 'sim')">✅</button>
+          <button class="secondary small" onclick="setStatus('${j.telefone}', 'nao')">❌</button>
+          <button class="warn small" onclick="removePlayer('${j.telefone}', 'mensalista')">🗑️</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="4">Nenhum mensalista cadastrado</td></tr>';
+
+    $('avulsos').innerHTML = data.avulsos.map(j => `
+      <tr>
+        <td>${j.nome}</td><td>${j.telefone}</td>
+        <td><span class="status ${getStatusClass(j.status)}">${j.status}</span></td>
+        <td>
+          <button class="secondary small" onclick="setStatus('${j.telefone}', 'confirmado')">✅</button>
+          <button class="warn small" onclick="removePlayer('${j.telefone}', 'avulso')">🗑️</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="4">Nenhum avulso na fila</td></tr>';
+
+  } catch (e) { 
+    console.error(e); 
+    toast('Erro ao carregar dados: ' + e.message);
+  }
+
   try {
     const data = await request('/api/status');
     const resumo = data.resumo;
