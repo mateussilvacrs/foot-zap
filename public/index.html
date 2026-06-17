@@ -298,6 +298,8 @@
       <span class="arrow">›</span>
       <button class="btn-purple" id="btnAbrirAvulsos">🔓 Liberar Avulsos</button>
       <span class="arrow">›</span>
+      <button class="btn-ghost"  id="btnFecharAvulsos">🔒 Fechar Avulsos</button>
+      <span class="arrow">›</span>
       <button class="btn-amber"  id="btnConvocar">📣 Convocar Grupo</button>
       <span class="arrow">›</span>
       <button class="btn-red"    id="btnFechar">🏁 Fechar e Resumo</button>
@@ -337,6 +339,11 @@
     <!-- Avulsos -->
     <div class="panel">
       <h2>Avulsos &amp; Fila de Espera</h2>
+      <div class="form-row">
+        <input id="inpAvulsoTel"  placeholder="5511999999999" style="flex:1.2"/>
+        <input id="inpAvulsoNome" placeholder="Nome" style="flex:2"/>
+        <button class="btn-green" id="btnAddAvulso" style="flex-shrink:0">+ Adicionar</button>
+      </div>
       <table>
         <thead>
           <tr>
@@ -542,6 +549,11 @@
     action(() => api('/api/acao/abrir', { method: 'POST' }), 'Avulsos liberados!');
   });
 
+  $('btnFecharAvulsos').addEventListener('click', () => {
+    if (!confirm('Fechar inscrições de avulsos? O /querojogar será bloqueado.')) return;
+    action(() => api('/api/acao/fechar-avulsos', { method: 'POST' }), 'Avulsos fechados!');
+  });
+
   $('btnConvocar').addEventListener('click', () => {
     if (!confirm('Enviar mensagem de convocação no grupo?')) return;
     action(() => api('/api/acao/convocar', { method: 'POST' }), 'Convocação enviada!');
@@ -562,6 +574,16 @@
       () => api('/api/mensalista', { method: 'POST', body: { telefone: tel, nome } }),
       `${nome} adicionado!`
     ).then(() => { $('inpTel').value = ''; $('inpNome').value = ''; });
+  });
+
+  $('btnAddAvulso').addEventListener('click', () => {
+    const tel  = $('inpAvulsoTel').value.trim();
+    const nome = $('inpAvulsoNome').value.trim();
+    if (!nome) { toast('Preencha o nome do avulso.', 'err'); return; }
+    action(
+      () => api('/api/avulso', { method: 'POST', body: { telefone: tel || '0', nome } }),
+      `${nome} adicionado como avulso!`
+    ).then(() => { $('inpAvulsoTel').value = ''; $('inpAvulsoNome').value = ''; });
   });
 
   $('btnSalvarVagas').addEventListener('click', () => {
@@ -586,4 +608,5 @@
   setInterval(load, 10000);
 </script>
 </body>
+<footer>0.01</footer>
 </html>

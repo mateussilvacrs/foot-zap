@@ -236,6 +236,36 @@ app.delete('/api/mensalista/:telefone', authMiddleware, (req, res) => {
 app.post('/api/acao/abrir', authMiddleware, (req, res) => {
   res.json(db.setAberto(true));
 });
+
+// Fechar só as inscrições de avulsos (sem fechar a rodada toda)
+app.post('/api/acao/fechar-avulsos', authMiddleware, (req, res) => {
+  res.json(db.setAberto(false));
+});
+
+// Adicionar avulso manualmente pelo dashboard (sem exigir que a rodada esteja aberta)
+app.post('/api/avulso', authMiddleware, (req, res) => {
+  const { nome, telefone } = req.body;
+  if (!nome) return res.status(400).json({ error: 'Nome obrigatório.' });
+
+  const tel = String(telefone || '').replace(/\D/g, '') || `manual_${Date.now()}`;
+
+  const jaExiste = db.getState().avulsos.find(a => a.telefone === tel && tel !== `manual_${Date.now()}`);
+  if (jaExiste) return res.status(400).json({ error: 'Avulso já cadastrado com esse telefone.' });
+
+  const { confirmados, avulsos: avulsosConf } = db.resumo();
+  const totalOcupado = confirmados.length + avulsosConf.length;
+  const vagasRestantes = db.getState().configuracoes.totalVagas - totalOcupado;
+
+  const jogador = {
+    telefone: tel,
+    nome: nome.trim(),
+    status: vagasRestantes > 0 ? 'confirmado' : 'espera'
+  };
+
+  db.getState().avulsos.push(jogador);
+  db.save();
+  res.status(201).json({ ok: true, jogador });
+});
 app.post('/api/acao/fechar', authMiddleware, async (req, res) => {
   db.setAberto(false);
   db.liberarAvulsos();
