@@ -12,6 +12,21 @@ const services = { db, whatsapp, sheets };
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
+// ─── Rota de debug — REMOVA EM PRODUÇÃO ───────────────────────────────────────
+// Acesse GET /debug/last-webhook para ver o último payload recebido
+let lastWebhookPayload = null;
+app.use((req, res, next) => {
+  if (req.path === '/webhook' && req.method === 'POST') {
+    // Intercepta antes do handler para guardar o payload bruto
+    const originalJson = res.json.bind(res);
+    lastWebhookPayload = req.body;
+  }
+  next();
+});
+app.get('/debug/last-webhook', (req, res) => {
+  res.json(lastWebhookPayload || { msg: 'Nenhum webhook recebido ainda.' });
+});
+
 // ─── Auth Middleware ───────────────────────────────────────────────────────────
 
 function authMiddleware(req, res, next) {
@@ -26,45 +41,94 @@ function authMiddleware(req, res, next) {
 
 // ─── Webhook WhatsApp ──────────────────────────────────────────────────────────
 
+// Loga o payload completo em desenvolvimento para facilitar debug
+function logWebhook(body) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[WEBHOOK]', JSON.stringify(body, null, 2));
+  }
+}
+
+// Extrai o número do remetente a partir das várias estruturas que a Evolution API usa
+function extractSenderPhone(body) {
+  const data = body.data || body;
+
+  // Formato v2: sender direto
+  if (data.sender) return onlyDigits(data.sender.split('@')[0]);
+
+  const key = data.key || data.message?.key || {};
+  const participant = key.participant || data.participant || '';
+  if (participant) return onlyDigits(participant.split('@')[0]);
+
+  const remoteJid = key.remoteJid || '';
+  if (remoteJid && !remoteJid.endsWith('@g.us')) {
+    return onlyDigits(remoteJid.split('@')[0]);
+  }
+
+  return '';
+}
+
 app.post('/webhook', async (req, res) => {
+  res.json({ ok: true }); // responde imediatamente para a Evolution não reenviar
+
   try {
     const body = req.body;
-    const message = whatsapp.extractWebhookMessage(body);
-    const senderPhone = onlyDigits(body.data?.sender?.split('@')[0] || '');
-    const telefoneFinal = message.telefone || senderPhone;
+    logWebhook(body);
 
-    // ── Voto na enquete ──────────────────────────────────────────────────────
-    const pollUpdate = body.data?.message?.pollUpdateMessage;
-    if (pollUpdate) {
-      try {
-        const pollData = await whatsapp.getPollStatus(pollUpdate.pollCreationMessageKey?.id);
-        if (pollData?.pollUpdates) {
-          // pollUpdates[0] = opção "✅ Vou jogar", pollUpdates[1] = "❌ Não vou"
-          const votouSim = (pollData.pollUpdates[0]?.voters || []).some(
-            v => onlyDigits(v).includes(telefoneFinal)
-          );
-          const votouNao = (pollData.pollUpdates[1]?.voters || []).some(
-            v => onlyDigits(v).includes(telefoneFinal)
-          );
+    const event = body.event || body.type || '';
+    const data  = body.data || body;
 
-          let novoStatus = null;
-          if (votouSim) novoStatus = 'sim';
-          else if (votouNao) novoStatus = 'nao';
-          // Se retirou o voto, volta para pendente
-          else novoStatus = 'pendente';
+    // ── Detecta voto em enquete ──────────────────────────────────────────────
+    // A Evolution API envia event === 'messages.update' com pollUpdateMessage
+    // OU event === 'POLL_UPDATE' dependendo da versão/configuração
+    const isPollEvent =
+      event === 'POLL_UPDATE' ||
+      event === 'messages.update' ||
+      data?.message?.pollUpdateMessage !== undefined ||
+      data?.pollUpdateMessage !== undefined;
 
-          const atualizado = db.updatePlayerStatus(telefoneFinal, novoStatus);
-          if (atualizado) {
-            db.log('Voto na enquete processado', { telefone: telefoneFinal, status: novoStatus });
-          }
-        }
-      } catch (e) {
-        console.error('Erro ao processar enquete:', e);
+    if (isPollEvent) {
+      const pollUpdate =
+        data?.message?.pollUpdateMessage ||
+        data?.pollUpdateMessage ||
+        data;
+
+      // O telefone do votante vem no remetente do evento de update
+      const telefoneVotante = extractSenderPhone(body);
+
+      if (!telefoneVotante) {
+        console.warn('[POLL] Não foi possível identificar o telefone do votante', body);
+        return;
       }
-      return res.json({ ok: true });
+
+      // selectedOptions vem direto no pollUpdateMessage da Evolution v2
+      // É um array com os nomes das opções selecionadas pelo usuário
+      const selectedOptions = (
+        pollUpdate?.selectedOptions ||
+        pollUpdate?.vote?.selectedOptions ||
+        []
+      ).map(o => (typeof o === 'string' ? o : o?.name || o?.optionName || '').toLowerCase());
+
+      console.log('[POLL] Votante:', telefoneVotante, '| Opções:', selectedOptions);
+
+      let novoStatus;
+      if (selectedOptions.some(o => o.includes('vou jogar') || o.includes('sim') || o.startsWith('✅'))) {
+        novoStatus = 'sim';
+      } else if (selectedOptions.some(o => o.includes('não vou') || o.includes('nao') || o.startsWith('❌'))) {
+        novoStatus = 'nao';
+      } else {
+        // Array vazio = usuário retirou o voto
+        novoStatus = 'pendente';
+      }
+
+      const atualizado = db.updatePlayerStatus(telefoneVotante, novoStatus);
+      console.log('[POLL] Status atualizado:', { telefoneVotante, novoStatus, atualizado });
+      return;
     }
 
-    // ── Comando de texto ─────────────────────────────────────────────────────
+    // ── Mensagem de texto ────────────────────────────────────────────────────
+    const message = whatsapp.extractWebhookMessage(body);
+    const telefoneFinal = extractSenderPhone(body) || message.telefone;
+
     if (!message.fromMe && message.text?.startsWith('/')) {
       const ctx = { ...message, telefone: telefoneFinal };
       const reply = await handleCommand(ctx, services);
@@ -73,11 +137,10 @@ app.post('/webhook', async (req, res) => {
         await whatsapp.sendText(dest, reply);
       }
     }
-  } catch (e) {
-    console.error('Erro no webhook:', e);
-  }
 
-  res.json({ ok: true });
+  } catch (e) {
+    console.error('[WEBHOOK] Erro:', e);
+  }
 });
 
 // ─── API REST ──────────────────────────────────────────────────────────────────
