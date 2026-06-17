@@ -8,50 +8,56 @@ function adminNumbers() {
 }
 
 function numberedList(items) {
-  if (!items.length) return '- nenhum';
-  return items.map((item, index) => `${index + 1} ${item.nome}`).join('\n');
+  if (!items || !items.length) return '- nenhum';
+  return items.map((item, i) => `${i + 1}. ${item.nome}`).join('\n');
 }
 
 function formatResumo(db) {
-  const resumo = db.resumo();
-  return [
+  const r = db.resumo();
+  const linhas = [
     '⚽ RESUMO DA SEMANA',
+    `Rodada: ${r.rodada}`,
     '',
-    'Confirmados:',
-    numberedList(resumo.confirmados),
+    `✅ Confirmados (${r.confirmados.length}):`,
+    numberedList(r.confirmados),
     '',
-    'Ausentes:',
-    numberedList(resumo.ausentes),
+    `❌ Ausentes (${r.ausentes.length}):`,
+    numberedList(r.ausentes),
     '',
-    'Avulsos:',
-    numberedList(resumo.avulsos),
+    `⏳ Pendentes (${r.pendentes.length}):`,
+    numberedList(r.pendentes),
     '',
-    resumo.espera.length ? `Fila de espera:\n${numberedList(resumo.espera)}\n` : null,
-    `Vagas restantes: ${resumo.vagasRestantes}`
-  ]
-    .filter(Boolean)
-    .join('\n');
+    `🔓 Avulsos (${r.avulsos.length}):`,
+    numberedList(r.avulsos)
+  ];
+
+  if (r.espera && r.espera.length) {
+    linhas.push('', `🕐 Fila de espera (${r.espera.length}):`, numberedList(r.espera));
+  }
+
+  linhas.push('', `Vagas restantes: ${r.vagasRestantes}`);
+  return linhas.join('\n');
 }
 
 function formatLista(db) {
-  const resumo = db.resumo();
+  const r = db.resumo();
   return [
-    `⚽ LISTA DA RODADA ${resumo.rodada}`,
+    `⚽ LISTA DA RODADA ${r.rodada}`,
     '',
-    'Mensalistas confirmados:',
-    numberedList(resumo.confirmados),
+    `Mensalistas confirmados (${r.confirmados.length}):`,
+    numberedList(r.confirmados),
     '',
-    'Avulsos:',
-    numberedList(resumo.avulsos),
+    `Avulsos (${r.avulsos.length}):`,
+    numberedList(r.avulsos),
     '',
-    `Vagas restantes: ${resumo.vagasRestantes}`
+    `Vagas restantes: ${r.vagasRestantes}`
   ].join('\n');
 }
 
 function mensagemConvocacao() {
   return [
     '⚽ CONFIRMAÇÃO FUTEBOL DE QUARTA',
-    'Mensalistas, confirmem presença:',
+    'Mensalistas, confirmem presença respondendo a enquete ou pelo chat:',
     '/confirmar sim',
     '/confirmar nao',
     '',
@@ -63,24 +69,25 @@ function mensagemConvocacao() {
 function mensagemAjuda(isAdmin = false) {
   const base = [
     '⚽ Comandos do Futebol Bot',
-    'Mensalistas: /confirmar sim',
-    'Mensalistas: /confirmar nao',
-    'Avulsos: /querojogar',
-    '/lista',
-    '/ajuda'
+    '/confirmar sim  – Confirmar presença (mensalistas)',
+    '/confirmar nao  – Registrar ausência (mensalistas)',
+    '/querojogar      – Entrar como avulso',
+    '/lista           – Ver lista da rodada',
+    '/ajuda           – Ver esta mensagem'
   ];
 
   if (isAdmin) {
     base.push(
       '',
-      'Admin privado:',
-      '/admin nova-semana',
+      '🔧 Admin (somente privado):',
+      '/admin nova-semana [AAAA-MM-DD]',
       '/admin convocar',
       '/admin fechar',
       '/admin abrir',
       '/admin resumo',
-      '/admin add-mensalista telefone nome',
-      '/admin rm-mensalista telefone'
+      '/admin lembrar',
+      '/admin add-mensalista <telefone> <nome>',
+      '/admin rm-mensalista <telefone>'
     );
   }
 
@@ -92,7 +99,7 @@ async function enviarLembretesPendentes(db, whatsapp) {
   for (const jogador of pendentes) {
     await whatsapp.sendPrivateMessage(
       jogador.telefone,
-      `⚽ Oi, ${jogador.nome}! Confirme o futebol desta semana com /confirmar sim ou /confirmar nao.`
+      `⚽ Oi, ${jogador.nome}! Confirme o futebol desta semana:\n/confirmar sim\n/confirmar nao`
     );
   }
   db.log('Lembretes enviados', { total: pendentes.length });
@@ -105,46 +112,61 @@ async function handleAdmin(command, context, services) {
   if (!isAdmin) return 'Comando restrito aos administradores.';
   if (context.isGroup) return 'Por segurança, comandos admin devem ser enviados no privado do bot.';
 
-  const args = command.split(/\s+/).slice(1);
+  const args = command.trim().split(/\s+/).slice(1); // remove "/admin"
   const action = (args.shift() || '').toLowerCase();
 
   if (action === 'nova-semana') {
-    db.novaSemana();
-    return `Nova semana criada para ${db.getState().rodada}.`;
+    const rodada = args[0] || null;
+    db.novaSemana(rodada);
+    return `Nova semana criada. Rodada: ${db.getState().rodada}.`;
   }
 
   if (action === 'convocar') {
-    await whatsapp.sendGroupMessage(mensagemConvocacao());
+    const result = await whatsapp.sendGroupMessage(mensagemConvocacao());
     return 'Convocação enviada no grupo.';
   }
 
   if (action === 'fechar') {
     db.setAberto(false);
     db.liberarAvulsos();
-    await sheets.syncResumo(db).catch((error) => db.log('Erro ao sincronizar Sheets', { error: error.message }));
-    const resumo = formatResumo(db);
-    await whatsapp.sendGroupMessage(resumo);
+    if (sheets) {
+      await sheets.syncResumo(db).catch(e => db.log('Erro Sheets', { error: e.message }));
+    }
+    await whatsapp.sendGroupMessage(formatResumo(db));
     return 'Rodada fechada e resumo enviado.';
   }
 
   if (action === 'abrir') {
     db.setAberto(true);
-    return 'Rodada aberta.';
+    return 'Rodada aberta. Avulsos podem se inscrever com /querojogar.';
   }
 
-  if (action === 'resumo') return formatResumo(db);
+  if (action === 'resumo') {
+    return formatResumo(db);
+  }
+
+  if (action === 'lembrar') {
+    const total = await enviarLembretesPendentes(db, whatsapp);
+    return `Lembretes enviados para ${total} jogador(es) pendente(s).`;
+  }
 
   if (action === 'add-mensalista') {
     const telefone = args.shift();
     const nome = args.join(' ').trim();
-    db.addMensalista(telefone, nome);
-    return `Mensalista ${nome} salvo.`;
+    if (!telefone || !nome) return 'Uso: /admin add-mensalista <telefone> <nome>';
+    try {
+      db.addMensalista(telefone, nome);
+      return `✅ Mensalista ${nome} cadastrado com sucesso.`;
+    } catch (e) {
+      return `Erro: ${e.message}`;
+    }
   }
 
   if (action === 'rm-mensalista') {
     const telefone = args.shift();
+    if (!telefone) return 'Uso: /admin rm-mensalista <telefone>';
     const removed = db.removeMensalista(telefone);
-    return removed ? 'Mensalista removido.' : 'Mensalista nao encontrado.';
+    return removed ? 'Mensalista removido.' : 'Mensalista não encontrado.';
   }
 
   return mensagemAjuda(true);
@@ -167,46 +189,56 @@ async function handleCommand(context, services) {
 
   if (lower.startsWith('/confirmar') || lower.startsWith('/confirma')) {
     const parts = lower.split(/\s+/);
-    const status = parts[1] === 'não' ? 'nao' : parts[1];
-    if (!['sim', 'nao'].includes(status)) return 'Use /confirmar sim ou /confirmar nao.';
+    const rawStatus = (parts[1] || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const status = rawStatus === 'nao' || rawStatus === 'não' ? 'nao' : rawStatus;
 
-    const state = db.confirmarMensalista(context.telefone, context.nome, status);
-    if (!state) return 'Não encontrei você como mensalista. Se quiser entrar como avulso, use /querojogar.';
+    if (!['sim', 'nao'].includes(status)) {
+      return 'Use /confirmar sim ou /confirmar nao.';
+    }
 
-    await sheets
-      .appendRegistro({
+    const jogador = db.confirmarMensalista(context.telefone, context.nome, status);
+    if (!jogador) {
+      return 'Não encontrei você como mensalista. Se quiser entrar como avulso, use /querojogar.';
+    }
+
+    if (sheets) {
+      await sheets.appendRegistro({
         data: db.getState().rodada,
-        nome: context.nome,
-        telefone: context.telefone,
+        nome: jogador.nome,
+        telefone: jogador.telefone,
         tipo: 'Mensalista',
         status
-      })
-      .catch((error) => db.log('Erro ao registrar Sheets', { error: error.message }));
+      }).catch(e => db.log('Erro Sheets', { error: e.message }));
+    }
 
     return status === 'sim'
-      ? 'Presença confirmada. Bom jogo! ⚽'
-      : 'Ausência registrada. Valeu por avisar!';
+      ? `✅ Presença confirmada. Bom jogo, ${jogador.nome}! ⚽`
+      : `👍 Ausência registrada. Valeu por avisar, ${jogador.nome}!`;
   }
 
   if (lower === '/querojogar') {
     const result = db.addAvulso(context.telefone, context.nome);
     if (result.motivo === 'fechado') return 'A rodada está fechada no momento.';
     if (result.motivo === 'mensalista') return 'Você é mensalista. Confirme com /confirmar sim ou /confirmar nao.';
-    if (result.repetido) return `Você já está na lista como ${result.jogador.status}.`;
+    if (result.repetido) {
+      const status = result.jogador.status === 'espera' ? 'na fila de espera' : 'na lista de avulsos';
+      return `Você já está ${status}.`;
+    }
 
-    await sheets
-      .appendRegistro({
+    if (sheets) {
+      await sheets.appendRegistro({
         data: db.getState().rodada,
         nome: result.jogador.nome,
         telefone: result.jogador.telefone,
         tipo: 'Avulso',
         status: result.jogador.status
-      })
-      .catch((error) => db.log('Erro ao registrar Sheets', { error: error.message }));
+      }).catch(e => db.log('Erro Sheets', { error: e.message }));
+    }
 
+    const valor = db.getState().configuracoes.valorAvulso;
     return result.jogador.status === 'confirmado'
-      ? 'Você entrou na lista de avulsos. Valor: R$ ' + db.getState().configuracoes.valorAvulso
-      : 'Lista cheia ⚽ você entrou na fila de espera.';
+      ? `✅ Você entrou na lista de avulsos. Valor: R$ ${valor} ⚽`
+      : '⏳ Lista cheia — você entrou na fila de espera.';
   }
 
   return 'Comando não reconhecido. Use /ajuda para ver as opções.';

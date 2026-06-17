@@ -1,298 +1,589 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Futebol Bot Admin</title>
-    <style>
-      :root { color-scheme: light; --bg: #f4f7f2; --panel: #ffffff; --ink: #18251d; --muted: #5d6b62; --line: #dce6df; --accent: #1f8a4c; --accent-dark: #176b3a; --warn: #b75519; --blue: #1976D2; --purple: #673AB7;}
-      * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font-family: Arial, sans-serif; }
-      header { padding: 24px clamp(16px, 4vw, 48px); background: #113d24; color: white; }
-      header h1 { margin: 0 0 6px; font-size: clamp(24px, 4vw, 38px); }
-      header p { margin: 0; color: #cfe4d6; }
-      main { width: min(1180px, calc(100% - 32px)); margin: 24px auto 48px; }
-      .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-      .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-      @media (max-width: 860px) { .grid, .columns, .form-row { grid-template-columns: 1fr; } }
-      .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-      .card { padding: 16px; }
-      .panel { margin-top: 18px; padding: 18px; }
-      .label { color: var(--muted); font-size: 13px; }
-      .value { margin-top: 8px; font-size: 30px; font-weight: 700; }
-      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;}
-      button { min-height: 36px; border: 0; border-radius: 6px; background: var(--accent); color: white; padding: 0 14px; font-weight: 700; cursor: pointer; }
-      button.secondary { background: #e7eee9; color: var(--ink); }
-      button.warn { background: var(--warn); }
-      button.blue { background: var(--blue); }
-      button.purple { background: var(--purple); }
-      button.small { padding: 0 8px; min-height: 28px; font-size: 12px; margin-right: 4px; }
-      button:hover { opacity: 0.9; }
-      input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: inherit; }
-      textarea { min-height: 84px; resize: vertical; }
-      .form-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; align-items: end; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: middle; }
-      th { color: var(--muted); font-size: 13px; }
-      .status { display: inline-block; border-radius: 999px; background: #e7eee9; padding: 4px 8px; font-size: 12px; font-weight: 700; }
-      .status.sim { background: #d4edda; color: #155724; }
-      .status.nao { background: #f8d7da; color: #721c24; }
-      .topline { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 14px; }
-      #toast { min-height: 20px; color: var(--muted); margin-top: 12px; }
-      .poll-card { background: #eaf3ff; border: 1px solid #bbdefb; }
-      .poll-status { font-weight: bold; color: var(--blue); }
-      .poll-status.fechada { color: var(--muted); }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>Futebol Bot Dashboard</h1>
-      <p>Gerenciamento completo da rodada e enquetes</p>
-    </header>
-    <main>
-      <div style="margin-bottom: 20px;">
-        <input type="password" id="adminToken" placeholder="Digite seu Token Administrativo aqui para habilitar ações" style="max-width: 400px;"/>
-      </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Futebol Bot · Admin</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
 
-      <!-- PAINEL DE CONTROLE DE FLUXO -->
-      <section class="panel poll-card">
-        <div class="topline">
-          <div>
-            <h2>⚽ Controle da Rodada</h2>
-            <div class="label">Status da Enquete: <span id="pollStatus" class="poll-status">Carregando...</span></div>
-            <div class="label">Entrada de Avulsos: <strong id="abertoStatus">Carregando...</strong></div>
-          </div>
-          <div class="label" id="updated"></div>
-        </div>
-        <div class="actions">
-          <button data-action="/api/acao/nova-semana" class="secondary">1. Resetar Semana</button>
-          <button id="btnCreatePoll" class="blue">2. Enviar Enquete</button>
-          <button id="btnClosePoll" class="secondary">3. Fechar Enquete</button>
-          <button id="btnLiberarAvulsos" class="purple">4. Liberar Avulsos no Grupo</button>
-          <button id="btnFinalizar" class="warn">5. Fechar Tudo e Mandar Resumo</button>
-        </div>
-        <div id="toast"></div>
-      </section>
-
-      <section class="grid" style="margin-top: 18px;">
-        <div class="card"><div class="label">Total Confirmados</div><div class="value" id="totalJogadores">0</div></div>
-        <div class="card"><div class="label">Mensalistas Confirm.</div><div class="value" id="confirmados">0</div></div>
-        <div class="card"><div class="label">Avulsos Confirm.</div><div class="value" id="avulsosConfirmados">0</div></div>
-        <div class="card">
-          <div class="label">Vagas: <span id="vagasOcupadas">0</span> / <span id="vagasTotal">20</span></div>
-          <div class="value" id="vagas">0</div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Enviar mensagem</h2>
-        <textarea id="mensagem" placeholder="Mensagem livre para o grupo"></textarea>
-        <div style="margin-top: 10px">
-          <button id="sendMessage">Enviar</button>
-        </div>
-      </section>
-
-      <!-- GERENCIAMENTO INDIVIDUAL -->
-      <section class="columns">
-        <div class="panel">
-          <h2>Mensalistas</h2>
-          <div class="form-row" style="margin-bottom: 15px;">
-            <input id="telefone" placeholder="Tel: 5511999999999" />
-            <input id="nome" placeholder="Nome do Jogador" />
-            <button id="addMensalista">Adicionar</button>
-          </div>
-          <table>
-            <thead><tr><th>Nome</th><th>Telefone</th><th>Status</th><th>Ação Rápida</th></tr></thead>
-            <tbody id="mensalistas"></tbody>
-          </table>
-        </div>
-        
-        <div class="panel">
-          <h2>Avulsos (Fila de Espera)</h2>
-          <table>
-            <thead><tr><th>Nome</th><th>Telefone</th><th>Status</th><th>Ação Rápida</th></tr></thead>
-            <tbody id="avulsos"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Ajustes</h2>
-        <div class="form-row" style="max-width: 400px;">
-          <input id="totalVagasInput" type="number" placeholder="Limite de vagas" />
-          <button id="btnSalvarVagas" class="secondary">Alterar Limite</button>
-        </div>
-      </section>
-    </main>
-
-    <script>
-      const $ = (id) => document.getElementById(id);
-      function toast(msg) { $('toast').textContent = msg; setTimeout(() => $('toast').textContent='', 4000); }
-      $('adminToken').value = localStorage.getItem('futebolBotToken') || '';
-      $('adminToken').addEventListener('input', (e) => localStorage.setItem('futebolBotToken', e.target.value));
-
-      async function request(path, options = {}) {
-        const token = $('adminToken').value;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['x-admin-token'] = token;
-        const response = await fetch(path, { headers, ...options });
-        if (!response.ok) {
-          const err = await response.json().catch(()=>({}));
-          throw new Error(err.error || response.statusText);
-        }
-        return response.json();
-      }
-
-      function getStatusClass(status) {
-        if (status === 'sim' || status === 'confirmado') return 'sim';
-        if (status === 'nao') return 'nao';
-        return '';
-      }
-
-// ... substitua a sua função load atual por esta:
-
-async function load() {
-  try {
-    const data = await request('/api/status');
-    const resumo = data.resumo;
-    const totalVagas = data.configuracoes?.totalVagas || 20; 
-    
-    $('totalJogadores').textContent = resumo.totalJogadores;
-    $('confirmados').textContent = resumo.confirmados.length;
-    $('avulsosConfirmados').textContent = resumo.avulsos.length;
-    $('vagas').textContent = resumo.vagasRestantes;
-    $('vagasOcupadas').textContent = resumo.totalJogadores;
-    $('vagasTotal').textContent = totalVagas;
-    $('totalVagasInput').value = totalVagas;
-    
-    // Status da Enquete
-    if(resumo.poll && resumo.poll.active) {
-      $('pollStatus').textContent = '🟢 Aberta (' + resumo.poll.question + ')';
-      $('pollStatus').className = 'poll-status';
-    } else {
-      $('pollStatus').textContent = '🔴 Fechada ou Não Iniciada';
-      $('pollStatus').className = 'poll-status fechada';
+    :root {
+      --bg:        #0f1a13;
+      --surface:   #192419;
+      --surface2:  #1f2e21;
+      --border:    #2a3d2c;
+      --green:     #22c55e;
+      --green-dim: #166534;
+      --red:       #ef4444;
+      --red-dim:   #7f1d1d;
+      --amber:     #f59e0b;
+      --blue:      #3b82f6;
+      --purple:    #a855f7;
+      --ink:       #e8f5e9;
+      --muted:     #6b8f6e;
+      --radius:    10px;
+      --font:      'Inter', system-ui, sans-serif;
+      --mono:      'JetBrains Mono', monospace;
     }
-    
-    $('abertoStatus').textContent = data.aberto ? '🟢 Liberada para /querojogar' : '🔴 Bloqueada (Só mensalistas)';
-    $('abertoStatus').style.color = data.aberto ? 'green' : 'red';
-    $('updated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
 
-    // Mapeamento das tabelas
-    $('mensalistas').innerHTML = data.mensalistas.map(j => `
-      <tr>
-        <td>${j.nome}</td><td>${j.telefone}</td>
-        <td><span class="status ${getStatusClass(j.status)}">${j.status || 'pendente'}</span></td>
-        <td>
-          <button class="secondary small" onclick="setStatus('${j.telefone}', 'sim')">✅</button>
-          <button class="secondary small" onclick="setStatus('${j.telefone}', 'nao')">❌</button>
-          <button class="warn small" onclick="removePlayer('${j.telefone}', 'mensalista')">🗑️</button>
-        </td>
-      </tr>
-    `).join('') || '<tr><td colspan="4">Nenhum mensalista cadastrado</td></tr>';
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    $('avulsos').innerHTML = data.avulsos.map(j => `
-      <tr>
-        <td>${j.nome}</td><td>${j.telefone}</td>
-        <td><span class="status ${getStatusClass(j.status)}">${j.status}</span></td>
-        <td>
-          <button class="secondary small" onclick="setStatus('${j.telefone}', 'confirmado')">✅</button>
-          <button class="warn small" onclick="removePlayer('${j.telefone}', 'avulso')">🗑️</button>
-        </td>
-      </tr>
-    `).join('') || '<tr><td colspan="4">Nenhum avulso na fila</td></tr>';
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
 
-  } catch (e) { 
-    console.error(e); 
-    toast('Erro ao carregar dados: ' + e.message);
+    /* ── Layout ── */
+    header {
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--surface);
+    }
+    header .ball { font-size: 28px; }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    header .spacer { flex: 1; }
+    header .chip {
+      font-size: 11px; font-weight: 600; font-family: var(--mono);
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Auth bar ── */
+    .auth-bar {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .auth-bar label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .auth-bar input {
+      flex: 1; max-width: 360px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--ink); border-radius: 6px; padding: 7px 12px;
+      font-family: var(--mono); font-size: 13px;
+    }
+    .auth-bar input:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+    #authDot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+      transition: background .3s;
+    }
+    #authDot.ok  { background: var(--green); }
+    #authDot.err { background: var(--red); }
+
+    /* ── Cards de estatísticas ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .stat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+    }
+    .stat .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase;
+                 letter-spacing: .6px; color: var(--muted); }
+    .stat .num {
+      font-size: 36px; font-weight: 700; margin-top: 6px;
+      font-family: var(--mono); line-height: 1;
+    }
+    .stat .num.green  { color: var(--green); }
+    .stat .num.red    { color: var(--red); }
+    .stat .num.amber  { color: var(--amber); }
+    .stat .num.blue   { color: var(--blue); }
+    .stat .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Painel de fluxo ── */
+    .flow-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .flow-panel h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .meta-row {
+      display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .meta-item { font-size: 12px; color: var(--muted); }
+    .meta-item strong { color: var(--ink); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .pill.green  { background: #14532d; color: #4ade80; }
+    .pill.red    { background: #450a0a; color: #f87171; }
+    .pill.amber  { background: #451a03; color: #fcd34d; }
+    .pill.muted  { background: var(--surface2); color: var(--muted); }
+
+    .flow-steps {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    }
+    .flow-steps .arrow { color: var(--muted); font-size: 16px; }
+
+    /* ── Botões ── */
+    button {
+      font-family: var(--font); font-size: 13px; font-weight: 600;
+      border: none; border-radius: 6px; cursor: pointer;
+      padding: 0 14px; height: 36px; display: inline-flex;
+      align-items: center; gap: 6px; transition: opacity .15s, transform .1s;
+      white-space: nowrap;
+    }
+    button:hover  { opacity: .85; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .35; cursor: not-allowed; }
+
+    .btn-ghost  { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+    .btn-green  { background: var(--green); color: #000; }
+    .btn-red    { background: var(--red); color: #fff; }
+    .btn-blue   { background: var(--blue); color: #fff; }
+    .btn-amber  { background: var(--amber); color: #000; }
+    .btn-purple { background: var(--purple); color: #fff; }
+    .btn-sm     { height: 28px; padding: 0 10px; font-size: 12px; }
+
+    /* ── Seções de duas colunas ── */
+    .columns {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+    }
+    .panel h2 { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+
+    /* ── Form row ── */
+    .form-row {
+      display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .form-row input { flex: 1; min-width: 100px; }
+
+    input, textarea, select {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--ink); border-radius: 6px; padding: 8px 11px;
+      font-family: var(--font); font-size: 13px; width: 100%;
+    }
+    input:focus, textarea:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+    textarea { min-height: 80px; resize: vertical; }
+
+    /* ── Tabela ── */
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      padding: 9px 8px; text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    th { color: var(--muted); font-size: 11px; font-weight: 600;
+         text-transform: uppercase; letter-spacing: .5px; }
+    td:last-child { white-space: nowrap; }
+
+    .badge {
+      display: inline-block; border-radius: 999px;
+      padding: 2px 8px; font-size: 11px; font-weight: 700;
+      font-family: var(--mono);
+    }
+    .badge.sim        { background: #14532d; color: #4ade80; }
+    .badge.nao        { background: #450a0a; color: #f87171; }
+    .badge.confirmado { background: #1e3a5f; color: #93c5fd; }
+    .badge.espera     { background: #451a03; color: #fcd34d; }
+    .badge.pendente   { background: var(--surface2); color: var(--muted); }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--ink); border-radius: 8px;
+      padding: 12px 18px; font-size: 13px; font-weight: 500;
+      max-width: 320px; box-shadow: 0 4px 24px rgba(0,0,0,.5);
+      transform: translateY(80px); opacity: 0;
+      transition: transform .25s, opacity .25s;
+      z-index: 999; pointer-events: none;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.ok   { border-color: var(--green-dim); color: #4ade80; }
+    #toast.err  { border-color: var(--red-dim);   color: #f87171; }
+
+    /* ── Misc ── */
+    .row-apart { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .updated   { font-size: 11px; color: var(--muted); }
+    .empty     { color: var(--muted); font-size: 13px; padding: 12px 0; }
+
+    @media (max-width: 760px) {
+      .stats   { grid-template-columns: 1fr 1fr; }
+      .columns { grid-template-columns: 1fr; }
+      .flow-steps .arrow { display: none; }
+    }
+    @media (max-width: 480px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="ball">⚽</span>
+  <div>
+    <h1>Futebol Bot</h1>
+    <p>Painel administrativo</p>
+  </div>
+  <div class="spacer"></div>
+  <span class="chip" id="rodadaChip">–</span>
+</header>
+
+<main>
+
+  <!-- Auth -->
+  <div class="auth-bar">
+    <span id="authDot"></span>
+    <label for="adminToken">Token admin</label>
+    <input type="password" id="adminToken" placeholder="cole seu ADMIN_API_TOKEN aqui" autocomplete="off" />
+  </div>
+
+  <!-- Estatísticas -->
+  <div class="stats">
+    <div class="stat">
+      <div class="lbl">Confirmados</div>
+      <div class="num green" id="numConfirmados">–</div>
+      <div class="sub">mensalistas + avulsos</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Ausentes</div>
+      <div class="num red" id="numAusentes">–</div>
+      <div class="sub">mensalistas</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Pendentes</div>
+      <div class="num amber" id="numPendentes">–</div>
+      <div class="sub">sem resposta</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Vagas restantes</div>
+      <div class="num blue" id="numVagas">–</div>
+      <div class="sub" id="subVagas">de – total</div>
+    </div>
+  </div>
+
+  <!-- Fluxo da rodada -->
+  <div class="flow-panel">
+    <div class="row-apart">
+      <h2>Fluxo da Rodada</h2>
+      <span class="updated" id="updatedAt"></span>
+    </div>
+    <div class="meta-row">
+      <div class="meta-item">
+        Enquete: <span id="pollPill"><span class="pill muted">–</span></span>
+      </div>
+      <div class="meta-item">
+        Avulsos: <span id="abertoStatus"><span class="pill muted">–</span></span>
+      </div>
+    </div>
+    <div class="flow-steps">
+      <button class="btn-ghost" id="btnNovaS">🔄 Nova Semana</button>
+      <span class="arrow">›</span>
+      <button class="btn-blue"   id="btnEnviarEnquete">📊 Enviar Enquete</button>
+      <span class="arrow">›</span>
+      <button class="btn-ghost"  id="btnResetarEnquete">↩ Resetar Enquete</button>
+      <span class="arrow">›</span>
+      <button class="btn-purple" id="btnAbrirAvulsos">🔓 Liberar Avulsos</button>
+      <span class="arrow">›</span>
+      <button class="btn-amber"  id="btnConvocar">📣 Convocar Grupo</button>
+      <span class="arrow">›</span>
+      <button class="btn-red"    id="btnFechar">🏁 Fechar e Resumo</button>
+    </div>
+  </div>
+
+  <!-- Mensagem livre -->
+  <div class="panel">
+    <h2>Mensagem no Grupo</h2>
+    <textarea id="mensagem" placeholder="Escreva uma mensagem para enviar ao grupo…"></textarea>
+    <div style="margin-top:10px">
+      <button class="btn-green" id="btnSendMsg">Enviar mensagem</button>
+    </div>
+  </div>
+
+  <!-- Listas -->
+  <div class="columns">
+
+    <!-- Mensalistas -->
+    <div class="panel">
+      <h2>Mensalistas</h2>
+      <div class="form-row">
+        <input id="inpTel"  placeholder="5511999999999" style="flex:1.2"/>
+        <input id="inpNome" placeholder="Nome" style="flex:2"/>
+        <button class="btn-green" id="btnAddMens" style="flex-shrink:0">+ Adicionar</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Nome</th><th>Telefone</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbodyMens"></tbody>
+      </table>
+    </div>
+
+    <!-- Avulsos -->
+    <div class="panel">
+      <h2>Avulsos &amp; Fila de Espera</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Nome</th><th>Telefone</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbodyAvulsos"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Configurações -->
+  <div class="panel" style="max-width:420px">
+    <h2>Configurações</h2>
+    <div class="form-row">
+      <input id="inpVagas" type="number" min="1" max="200" placeholder="Total de vagas" style="flex:1"/>
+      <button class="btn-ghost" id="btnSalvarVagas">Salvar</button>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+  // ── Utilitários ────────────────────────────────────────────────────────────
+
+  const $ = id => document.getElementById(id);
+
+  let toastTimer;
+  function toast(msg, type = 'ok') {
+    const el = $('toast');
+    el.textContent = msg;
+    el.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 3500);
   }
 
-  try {
-    const data = await request('/api/status');
-    const resumo = data.resumo;
-    // O totalVagas agora vem dentro do data, não precisa de um segundo request!
-    const totalVagas = data.configuracoes?.totalVagas || 20; 
-    
-    $('totalJogadores').textContent = resumo.totalJogadores;
-    $('confirmados').textContent = resumo.confirmados.length;
-    $('avulsosConfirmados').textContent = resumo.avulsos.length;
-    $('vagas').textContent = resumo.vagasRestantes;
-    $('vagasOcupadas').textContent = resumo.totalJogadores;
-    $('vagasTotal').textContent = totalVagas;
-    $('totalVagasInput').value = totalVagas;
-    
-    // ... restante do seu código de preenchimento
-  } catch (e) { console.error(e); }
-}
-      window.setStatus = async (telefone, status) => {
-        try { await request(`/api/player/${telefone}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); load(); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      };
+  async function api(path, { method = 'GET', body } = {}) {
+    const token = $('adminToken').value.trim();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['x-admin-token'] = token;
+    const res = await fetch(path, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
 
-      window.removePlayer = async (telefone, tipo) => {
-        if(!confirm('Tem certeza que deseja remover?')) return;
-        try {
-          if (tipo === 'mensalista') await request(`/api/mensalista/${telefone}`, { method: 'DELETE' });
-          else await request(`/api/player/${telefone}/avulso`, { method: 'DELETE' });
-          load();
-        } catch (e) { toast('Erro: ' + e.message); }
-      };
-
-      // BOTÕES DE CONTROLE DA RODADA (FLUXO 1 a 5)
-      $('btnCreatePoll').addEventListener('click', async () => {
-        const question = prompt('Digite a pergunta da enquete:', '⚽ Confirmação - Futebol de Quarta');
-        if (!question) return;
-        try {
-          toast('Enviando enquete para o grupo...');
-          await request('/api/poll/create', { method: 'POST', body: JSON.stringify({ question }) });
-          toast('Enquete enviada!');
-          load();
-        } catch (e) { toast('Erro: ' + e.message); }
-      });
-
-      $('btnClosePoll').addEventListener('click', async () => {
-        if(!confirm('Fechar a enquete vai impedir que novos votos sejam contados. Continuar?')) return;
-        try { await request('/api/poll/close', { method: 'POST' }); toast('Enquete fechada!'); load(); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      });
-
-      $('btnLiberarAvulsos').addEventListener('click', async () => {
-        if(!confirm('Isso vai permitir o /querojogar e mandar uma mensagem no grupo chamando os avulsos. Continuar?')) return;
-        try { await request('/api/poll/liberar-avulsos', { method: 'POST' }); toast('Avulsos liberados!'); load(); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      });
-
-      $('btnFinalizar').addEventListener('click', async () => {
-        if(!confirm('Isso vai fechar a lista toda e mandar o resumo final no grupo. Continuar?')) return;
-        try { await request('/api/poll/finalizar', { method: 'POST' }); toast('Rodada fechada com sucesso!'); load(); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      });
-
-      // OUTROS BOTÕES
-      $('addMensalista').addEventListener('click', async () => {
-        try { await request('/api/mensalista', { method: 'POST', body: JSON.stringify({ telefone: $('telefone').value, nome: $('nome').value }) });
-          $('telefone').value = ''; $('nome').value = ''; load(); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      });
-      $('btnSalvarVagas').addEventListener('click', async () => {
-        try { await request('/api/vagas', { method: 'POST', body: JSON.stringify({ totalVagas: $('totalVagasInput').value }) }); toast('Limite atualizado.'); load(); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      });
-      $('sendMessage').addEventListener('click', async () => {
-        try { await request('/api/acao/mensagem', { method: 'POST', body: JSON.stringify({ mensagem: $('mensagem').value }) }); $('mensagem').value = ''; toast('Mensagem enviada.'); } 
-        catch (e) { toast('Erro: ' + e.message); }
-      });
-      document.querySelectorAll('[data-action]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if(!confirm('Deseja executar esta ação?')) return;
-          try { await request(btn.dataset.action, { method: 'POST', body: '{}' }); load(); } 
-          catch (e) { toast('Erro: ' + e.message); }
-        });
-      });
-
+  async function action(fn, successMsg) {
+    try {
+      await fn();
+      toast(successMsg || 'Pronto!', 'ok');
       load();
-      setInterval(load, 10000);
-    </script>
-  </body>
-  <footer>Version 0.3</footer>
+    } catch (e) {
+      toast('Erro: ' + e.message, 'err');
+    }
+  }
+
+  function badge(status) {
+    const map = {
+      sim:        'sim',
+      nao:        'nao',
+      confirmado: 'confirmado',
+      espera:     'espera',
+      pendente:   'pendente'
+    };
+    const cls = map[status] || 'pendente';
+    const labels = { sim: '✅ sim', nao: '❌ não', confirmado: '✅ confirmado',
+                     espera: '⏳ espera', pendente: '— pendente' };
+    return `<span class="badge ${cls}">${labels[status] || status}</span>`;
+  }
+
+  // ── Auth feedback ──────────────────────────────────────────────────────────
+
+  $('adminToken').value = localStorage.getItem('fbToken') || '';
+  $('adminToken').addEventListener('input', e => {
+    localStorage.setItem('fbToken', e.target.value);
+    $('authDot').className = '';
+  });
+
+  // ── Carga principal ────────────────────────────────────────────────────────
+
+  async function load() {
+    let data;
+    try {
+      data = await api('/api/status');
+      $('authDot').className = 'ok';
+    } catch (e) {
+      $('authDot').className = 'err';
+      if (e.message.toLowerCase().includes('autorizado') || e.message.includes('401')) {
+        toast('Token inválido ou ausente.', 'err');
+      }
+      return;
+    }
+
+    const resumo = data.resumo;
+    const vagas  = data.configuracoes?.totalVagas || 20;
+    const rodada = data.rodada || '–';
+
+    // Header chip
+    $('rodadaChip').textContent = rodada;
+
+    // Stats
+    $('numConfirmados').textContent = resumo.totalJogadores;
+    $('numAusentes').textContent    = resumo.ausentes.length;
+    $('numPendentes').textContent   = resumo.pendentes.length;
+    $('numVagas').textContent       = resumo.vagasRestantes;
+    $('subVagas').textContent       = `de ${vagas} total`;
+
+    // Status pills
+    const pollActive = Boolean(data.pollId);
+    $('pollPill').innerHTML = pollActive
+      ? '<span class="pill green">🟢 Enquete ativa</span>'
+      : '<span class="pill muted">⚫ Sem enquete</span>';
+
+    $('abertoStatus').innerHTML = data.aberto
+      ? '<span class="pill green">🔓 Aberto para avulsos</span>'
+      : '<span class="pill red">🔒 Fechado para avulsos</span>';
+
+    $('updatedAt').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+
+    // Vagas input
+    $('inpVagas').value = vagas;
+
+    // Tabela mensalistas
+    const mens = data.mensalistas || [];
+    $('tbodyMens').innerHTML = mens.length
+      ? mens.map((j, i) => `
+          <tr>
+            <td style="color:var(--muted)">${i + 1}</td>
+            <td>${j.nome}</td>
+            <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
+            <td>${badge(j.status || 'pendente')}</td>
+            <td>
+              <button class="btn-ghost btn-sm" title="Confirmar" onclick="setStatus('${j.telefone}','sim')">✅</button>
+              <button class="btn-ghost btn-sm" title="Ausente"   onclick="setStatus('${j.telefone}','nao')">❌</button>
+              <button class="btn-ghost btn-sm" title="Remover"   onclick="removeMens('${j.telefone}')">🗑</button>
+            </td>
+          </tr>`).join('')
+      : '<tr><td colspan="5" class="empty">Nenhum mensalista cadastrado.</td></tr>';
+
+    // Tabela avulsos
+    const avulsos = data.avulsos || [];
+    $('tbodyAvulsos').innerHTML = avulsos.length
+      ? avulsos.map((j, i) => `
+          <tr>
+            <td style="color:var(--muted)">${i + 1}</td>
+            <td>${j.nome}</td>
+            <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
+            <td>${badge(j.status)}</td>
+            <td>
+              <button class="btn-ghost btn-sm" title="Remover" onclick="removeAvulso('${j.telefone}')">🗑</button>
+            </td>
+          </tr>`).join('')
+      : '<tr><td colspan="5" class="empty">Nenhum avulso ainda.</td></tr>';
+  }
+
+  // ── Ações individuais ──────────────────────────────────────────────────────
+
+  window.setStatus = (tel, status) =>
+    action(() => api(`/api/player/${tel}/status`, { method: 'PATCH', body: { status } }),
+           'Status atualizado.');
+
+  window.removeMens = tel => {
+    if (!confirm('Remover mensalista?')) return;
+    action(() => api(`/api/mensalista/${tel}`, { method: 'DELETE' }), 'Mensalista removido.');
+  };
+
+  window.removeAvulso = tel => {
+    if (!confirm('Remover avulso?')) return;
+    action(() => api(`/api/avulso/${tel}`, { method: 'DELETE' }), 'Avulso removido.');
+  };
+
+  // ── Botões de fluxo ────────────────────────────────────────────────────────
+
+  $('btnNovaS').addEventListener('click', () => {
+    const rodada = prompt('Data da rodada (AAAA-MM-DD):', new Date().toISOString().slice(0, 10));
+    if (rodada === null) return;
+    action(() => api('/api/acao/nova-semana', { method: 'POST', body: { rodada } }),
+           'Semana resetada. Todos os mensalistas voltaram para pendente.');
+  });
+
+  $('btnEnviarEnquete').addEventListener('click', () => {
+    const question = prompt('Título da enquete:', '⚽ Futebol de Quarta — você vai?');
+    if (!question) return;
+    action(() => api('/api/poll/create', { method: 'POST', body: { question } }),
+           'Enquete enviada no grupo!');
+  });
+
+  $('btnResetarEnquete').addEventListener('click', () => {
+    if (!confirm('Isso volta todos os mensalistas para pendente. Continuar?')) return;
+    action(() => api('/api/poll/reset', { method: 'POST' }),
+           'Enquete resetada. Todos os mensalistas voltaram para pendente.');
+  });
+
+  $('btnAbrirAvulsos').addEventListener('click', () => {
+    if (!confirm('Liberar /querojogar para avulsos?')) return;
+    action(() => api('/api/acao/abrir', { method: 'POST' }), 'Avulsos liberados!');
+  });
+
+  $('btnConvocar').addEventListener('click', () => {
+    if (!confirm('Enviar mensagem de convocação no grupo?')) return;
+    action(() => api('/api/acao/convocar', { method: 'POST' }), 'Convocação enviada!');
+  });
+
+  $('btnFechar').addEventListener('click', () => {
+    if (!confirm('Fechar lista e enviar resumo final no grupo?')) return;
+    action(() => api('/api/acao/fechar', { method: 'POST' }), 'Rodada fechada e resumo enviado!');
+  });
+
+  // ── Outros botões ──────────────────────────────────────────────────────────
+
+  $('btnAddMens').addEventListener('click', () => {
+    const tel  = $('inpTel').value.trim();
+    const nome = $('inpNome').value.trim();
+    if (!tel || !nome) { toast('Preencha telefone e nome.', 'err'); return; }
+    action(
+      () => api('/api/mensalista', { method: 'POST', body: { telefone: tel, nome } }),
+      `${nome} adicionado!`
+    ).then(() => { $('inpTel').value = ''; $('inpNome').value = ''; });
+  });
+
+  $('btnSalvarVagas').addEventListener('click', () => {
+    const v = Number($('inpVagas').value);
+    if (!v || v < 1) { toast('Número de vagas inválido.', 'err'); return; }
+    action(() => api('/api/vagas', { method: 'POST', body: { totalVagas: v } }),
+           `Limite atualizado para ${v} vagas.`);
+  });
+
+  $('btnSendMsg').addEventListener('click', () => {
+    const msg = $('mensagem').value.trim();
+    if (!msg) { toast('Escreva uma mensagem.', 'err'); return; }
+    action(
+      () => api('/api/acao/mensagem', { method: 'POST', body: { mensagem: msg } }),
+      'Mensagem enviada no grupo!'
+    ).then(() => { $('mensagem').value = ''; });
+  });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+
+  load();
+  setInterval(load, 10000);
+</script>
+</body>
 </html>
