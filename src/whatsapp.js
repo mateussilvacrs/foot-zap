@@ -105,10 +105,14 @@ function extractWebhookMessage(body = {}) {
     
   const pushName = message.pushName || payload.pushName || message.notifyName || '';
   
+// ... (dentro da função extractWebhookMessage)
   let senderJid = key.participant || message.participant || payload.participant || remoteJid;
   const altJid = key.participantAlt || message.participantAlt || payload.participantAlt;
 
-  if (senderJid && senderJid.includes('@lid') && altJid) {
+  // A MÁGICA ESTÁ AQUI: Se tivermos um AltJid (que contém o telefone), usamos ele
+  if (altJid && altJid.includes('@s.whatsapp.net')) {
+    senderJid = altJid;
+  } else if (senderJid && senderJid.includes('@lid') && altJid) {
     senderJid = altJid;
   }
 
