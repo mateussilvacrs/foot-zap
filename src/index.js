@@ -79,39 +79,51 @@ app.post('/webhook', async (req, res) => {
 
     // ── Detecta voto em enquete ──────────────────────────────────────────────
     // Evolution v2.3.7: event='messages.upsert', messageType='pollUpdateMessage'
-    // Os votos chegam em data.pollUpdates[].voters (array de JIDs)
-    // O telefone do votante está em data.participantAlt (número real, sem LID)
+    // O voto descriptografado chega em data.message.vote.pollUpdateMessage.selectedOptions
+    // O telefone real do votante está em data.key.participantAlt
     const isPollEvent =
       data?.messageType === 'pollUpdateMessage' ||
-      data?.message?.pollUpdateMessage !== undefined;
+      data?.message?.pollUpdateMessage !== undefined ||
+      data?.message?.vote?.pollUpdateMessage !== undefined;
 
     if (isPollEvent) {
-      // Telefone real do votante: participantAlt tem o número limpo (ex: 5511983884799@s.whatsapp.net)
-      // sender no root é o bot/instância, não o votante — não usar
-      const participantAlt = data?.participantAlt || data?.key?.participantAlt || '';
+      // Telefone real: participantAlt = '5511983884799@s.whatsapp.net'
+      const participantAlt = data?.key?.participantAlt || data?.participantAlt || '';
       const telefoneVotante = onlyDigits(participantAlt.split('@')[0]);
 
       if (!telefoneVotante) {
-        console.warn('[POLL] Telefone do votante não encontrado. participantAlt:', participantAlt);
+        console.warn('[POLL] Telefone do votante não encontrado:', JSON.stringify(data?.key));
         return;
       }
 
-      // pollUpdates: [ { name: '✅ Vou jogar', voters: [...] }, { name: '❌ Não vou', voters: [...] } ]
-      const pollUpdates = data?.pollUpdates || [];
-      const optSim = pollUpdates.find(o => o.name?.includes('Vou jogar') || o.name?.includes('sim'));
-      const optNao = pollUpdates.find(o => o.name?.includes('Não vou') || o.name?.includes('nao'));
+      // selectedOptions é array de strings com os nomes das opções votadas
+      // Pode vir em dois caminhos dependendo da versão
+      const selectedOptions = (
+        data?.message?.vote?.pollUpdateMessage?.selectedOptions ||
+        data?.message?.pollUpdateMessage?.selectedOptions ||
+        data?.pollUpdates?.flatMap(o =>
+          (o.voters || []).some(v => onlyDigits(String(v).split('@')[0]) === telefoneVotante)
+            ? [o.name] : []
+        ) ||
+        []
+      );
 
-      // voters é array de JIDs — verifica se o telefone do votante está em algum deles
-      const inVoters = (opt) =>
-        (opt?.voters || []).some(v => onlyDigits(String(v).split('@')[0]) === telefoneVotante);
+      console.log('[POLL]', { telefoneVotante, selectedOptions });
+
+      const escolheu = (termo) =>
+        selectedOptions.some(s => String(s).toLowerCase().includes(termo));
 
       let novoStatus;
-      if (inVoters(optSim))      novoStatus = 'sim';
-      else if (inVoters(optNao)) novoStatus = 'nao';
-      else                       novoStatus = 'pendente'; // retirou o voto
+      if (escolheu('vou jogar') || escolheu('sim') || escolheu('✅')) {
+        novoStatus = 'sim';
+      } else if (escolheu('não vou') || escolheu('nao') || escolheu('❌')) {
+        novoStatus = 'nao';
+      } else {
+        novoStatus = 'pendente'; // array vazio = retirou o voto
+      }
 
       const atualizado = db.updatePlayerStatus(telefoneVotante, novoStatus);
-      console.log('[POLL]', { telefoneVotante, novoStatus, atualizado });
+      console.log('[POLL] Resultado:', { telefoneVotante, novoStatus, atualizado });
       return;
     }
 
