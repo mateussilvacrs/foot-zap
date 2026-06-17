@@ -151,8 +151,7 @@
 
       async function load() {
         try {
-          const data = await request('/api/status');
-          const resumo = data.resumo;
+const data = await request('https://web-production-9fef5.up.railway.app/api/status');          const resumo = data.resumo;
           const configVagas = await request('/api/vagas');
           
           $('totalJogadores').textContent = resumo.totalJogadores;
