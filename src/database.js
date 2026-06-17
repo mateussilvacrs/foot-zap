@@ -78,9 +78,9 @@ class Database {
     this.save();
   }
 
-  novaSemana(date = nextWednesday()) {
+novaSemana(date = nextWednesday()) {
     this.state.rodada = date;
-    this.state.aberto = true;
+    this.state.aberto = false; // <-- MUDA AQUI: Começa fechado para avulsos!
     this.state.poll = { active: false, question: '' };
     this.state.mensalistas = this.state.mensalistas.map((jogador) => ({
       ...jogador,

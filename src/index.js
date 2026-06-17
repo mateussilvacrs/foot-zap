@@ -52,6 +52,8 @@ app.post('/api/vagas', authMiddleware, (req, res) => {
 
 // --- NOVAS ROTAS DA ENQUETE E GERENCIAMENTO INDIVIDUAL ---
 
+// --- NOVAS ROTAS DA ENQUETE E GERENCIAMENTO INDIVIDUAL ---
+
 app.post('/api/poll/create', authMiddleware, async (req, res) => {
   try {
     const question = req.body.question || '⚽ Confirmação - Futebol de Quarta';
@@ -65,6 +67,53 @@ app.post('/api/poll/create', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.post('/api/poll/close', authMiddleware, async (req, res) => {
+  try {
+    // Apenas encerra a enquete visualmente no painel, não manda mensagem ainda
+    db.closePoll();
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/poll/liberar-avulsos', authMiddleware, async (req, res) => {
+  try {
+    db.setAberto(true); // Libera o uso do /querojogar no WhatsApp
+    const vagas = db.vagasRestantes();
+    const mensagem = `🔥 *Vagas abertas para Avulsos!*\n\nTemos *${vagas} vagas* disponíveis para a pelada.\n\nQuem quiser jogar, mande *exatamente* o comando abaixo aqui no grupo ou no meu privado:\n\n*/querojogar*`;
+    
+    await whatsapp.sendGroupMessage(mensagem);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/poll/finalizar', authMiddleware, async (req, res) => {
+  try {
+    db.setAberto(false); // Fecha a entrada de avulsos
+    db.liberarAvulsos(); // Move os avulsos de "espera" para "confirmado" se couber nas vagas
+    const resumo = formatResumo(db); // Gera o textão da lista final
+    await whatsapp.sendGroupMessage(resumo);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
+  const { status } = req.body; 
+  db.updatePlayerStatus(req.params.telefone, status);
+  res.json({ ok: true });
+});
+
+app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
+  db.removeAvulso(req.params.telefone);
+  res.json({ ok: true });
+});
+// -----------------------------------------------------------
 
 app.post('/api/poll/close', authMiddleware, async (req, res) => {
   try {
