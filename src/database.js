@@ -147,17 +147,21 @@ novaSemana(date = nextWednesday()) {
     return this.save();
   }
 
-  updatePlayerStatus(telefone, status) {
+updatePlayerStatus(telefone, status) {
     const normalized = onlyDigits(telefone);
-    let player = this.state.mensalistas.find((j) => onlyDigits(j.telefone) === normalized);
-    if (!player) {
-      player = this.state.avulsos.find((j) => onlyDigits(j.telefone) === normalized);
-    }
+    
+    // Procura na lista de mensalistas pelo telefone
+    const player = this.state.mensalistas.find((j) => onlyDigits(j.telefone) === normalized);
+    
     if (player) {
+      // Se achou, atualiza o status dele
       player.status = status;
-      this.log('Status atualizado manualmente pelo admin', { telefone: normalized, status });
+      this.log('Status atualizado via Enquete', { nome: player.nome, telefone: normalized, status });
       this.save();
+      return true; // Sucesso!
     }
+    
+    return false; // Jogador não encontrado na lista de mensalistas
   }
 
   addAvulso(telefone, nome) {
