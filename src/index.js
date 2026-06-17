@@ -78,48 +78,59 @@ app.post('/webhook', async (req, res) => {
     const data  = body.data || body;
 
     // ── Detecta voto em enquete ──────────────────────────────────────────────
-    // Evolution v2.3.7: event='messages.upsert', messageType='pollUpdateMessage'
-    // O voto descriptografado chega em data.message.vote.pollUpdateMessage.selectedOptions
-    // O telefone real do votante está em data.key.participantAlt
+    // Evolution v2.3.7: messageType='pollUpdateMessage'
+    // - Telefone real do votante: data.key.participantAlt (ex: "5511983884799@s.whatsapp.net")
+    // - Votos: data.pollUpdates[{ name, voters: [jid, ...] }]
+    //   voters pode conter o participantAlt OU o participant (LID) do votante
     const isPollEvent =
       data?.messageType === 'pollUpdateMessage' ||
-      data?.message?.pollUpdateMessage !== undefined ||
-      data?.message?.vote?.pollUpdateMessage !== undefined;
+      data?.message?.pollUpdateMessage !== undefined;
 
     if (isPollEvent) {
-      // Telefone real: participantAlt = '5511983884799@s.whatsapp.net'
-      const participantAlt = data?.key?.participantAlt || data?.participantAlt || '';
+      // Telefone real (número internacional, sem LID)
+      const participantAlt = data?.key?.participantAlt || '';   // "5511983884799@s.whatsapp.net"
+      const participantLid = data?.key?.participant    || '';   // "267739805548693@lid"
       const telefoneVotante = onlyDigits(participantAlt.split('@')[0]);
 
       if (!telefoneVotante) {
-        console.warn('[POLL] Telefone do votante não encontrado:', JSON.stringify(data?.key));
+        console.warn('[POLL] participantAlt ausente:', JSON.stringify(data?.key));
         return;
       }
 
-      // selectedOptions é array de strings com os nomes das opções votadas
-      // Pode vir em dois caminhos dependendo da versão
-      const selectedOptions = (
-        data?.message?.vote?.pollUpdateMessage?.selectedOptions ||
-        data?.message?.pollUpdateMessage?.selectedOptions ||
-        data?.pollUpdates?.flatMap(o =>
-          (o.voters || []).some(v => onlyDigits(String(v).split('@')[0]) === telefoneVotante)
-            ? [o.name] : []
-        ) ||
-        []
-      );
+      // pollUpdates vem no data raiz: [{ name: "✅ Vou jogar", voters: [...] }, ...]
+      // voters é array de JIDs — pode ser participantAlt ou participantLid dependendo do endereçamento
+      const pollUpdates = data?.pollUpdates || [];
 
-      console.log('[POLL]', { telefoneVotante, selectedOptions });
+      const esteVotante = (voters = []) =>
+        voters.some(v => {
+          const jid = String(v);
+          return (
+            onlyDigits(jid.split('@')[0]) === telefoneVotante ||   // match por número
+            jid === participantLid ||                               // match por LID
+            jid === participantAlt                                  // match por JID completo
+          );
+        });
 
-      const escolheu = (termo) =>
-        selectedOptions.some(s => String(s).toLowerCase().includes(termo));
+      // Encontra qual opção este votante escolheu
+      const opcaoVotada = pollUpdates.find(opt => esteVotante(opt.voters));
+
+      console.log('[POLL]', {
+        telefoneVotante,
+        participantLid,
+        opcaoVotada: opcaoVotada?.name ?? '(nenhuma — retirou voto)',
+        pollUpdates: pollUpdates.map(o => ({ name: o.name, voters: o.voters }))
+      });
 
       let novoStatus;
-      if (escolheu('vou jogar') || escolheu('sim') || escolheu('✅')) {
-        novoStatus = 'sim';
-      } else if (escolheu('não vou') || escolheu('nao') || escolheu('❌')) {
-        novoStatus = 'nao';
+      if (!opcaoVotada) {
+        novoStatus = 'pendente'; // retirou o voto
       } else {
-        novoStatus = 'pendente'; // array vazio = retirou o voto
+        const nome = opcaoVotada.name.toLowerCase();
+        if (nome.includes('vou jogar') || nome.includes('sim') || nome.startsWith('✅')) {
+          novoStatus = 'sim';
+        } else {
+          novoStatus = 'nao';
+        }
       }
 
       const atualizado = db.updatePlayerStatus(telefoneVotante, novoStatus);
