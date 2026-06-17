@@ -11,70 +11,16 @@ const services = { db, whatsapp };
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
-// Adicione esta rota no seu src/index.js
-app.get('/api/status', (req, res) => res.json({ 
-  rodada: db.getState().rodada, aberto: db.getState().aberto, 
-  resumo: db.resumo(), mensalistas: db.getState().mensalistas, avulsos: db.getState().avulsos 
-}));
+// ESSA FUNÇÃO ESTAVA FALTANDO PARA O DASHBOARD FUNCIONAR
+function authMiddleware(req, res, next) {
+  const token = req.headers['x-admin-token'];
+  if (process.env.ADMIN_API_TOKEN && token !== process.env.ADMIN_API_TOKEN) {
+    return res.status(401).json({ error: 'Não autorizado.' });
+  }
+  next();
+}
 
-app.get('/api/vagas', (req, res) => res.json({ totalVagas: db.getState().configuracoes.totalVagas }));
-
-app.post('/api/vagas', authMiddleware, (req, res) => {
-  db.getState().configuracoes.totalVagas = Number(req.body.totalVagas);
-  db.save();
-  res.json({ ok: true });
-});
-
-app.post('/api/mensalista', authMiddleware, (req, res) => {
-  db.addMensalista(req.body.telefone, req.body.nome);
-  res.json({ ok: true });
-});
-
-app.delete('/api/mensalista/:telefone', authMiddleware, (req, res) => {
-  db.removeMensalista(req.params.telefone);
-  res.json({ ok: true });
-});
-
-app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
-  db.removeAvulso(req.params.telefone);
-  res.json({ ok: true });
-});
-
-app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
-  db.updatePlayerStatus(req.params.telefone, req.body.status);
-  res.json({ ok: true });
-});
-
-app.post('/api/poll/create', authMiddleware, async (req, res) => {
-  await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
-  db.setPoll(req.body.question);
-  res.json({ ok: true });
-});
-
-app.post('/api/poll/close', authMiddleware, (req, res) => { db.closePoll(); res.json({ ok: true }); });
-
-app.post('/api/poll/liberar-avulsos', authMiddleware, async (req, res) => {
-  db.setAberto(true);
-  res.json({ ok: true });
-});
-
-app.post('/api/poll/finalizar', authMiddleware, async (req, res) => {
-  db.setAberto(false);
-  db.liberarAvulsos();
-  await whatsapp.sendGroupMessage(formatResumo(db));
-  res.json({ ok: true });
-});
-
-app.post('/api/acao/nova-semana', authMiddleware, (req, res) => {
-  db.novaSemana();
-  res.json({ ok: true });
-});
-
-app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
-  await whatsapp.sendGroupMessage(req.body.mensagem);
-  res.json({ ok: true });
-});
-
+// WEBHOOK
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
   const senderPhone = onlyDigits(req.body.data?.sender?.split('@')[0] || '');
@@ -97,12 +43,27 @@ app.post('/webhook', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Rotas API
-app.get('/api/status', (req, res) => res.json({ rodada: db.getState().rodada, aberto: db.getState().aberto, resumo: db.resumo(), mensalistas: db.getState().mensalistas, avulsos: db.getState().avulsos }));
-app.post('/api/acao/nova-semana', (req, res) => { db.novaSemana(); res.json({ ok: true }); });
-app.post('/api/mensalista', (req, res) => { db.addMensalista(req.body.telefone, req.body.nome); res.json({ ok: true }); });
+// ROTAS API (AGORA COM AUTH MIDDLEWARE)
+app.get('/api/status', authMiddleware, (req, res) => res.json({ 
+  rodada: db.getState().rodada, 
+  aberto: db.getState().aberto, 
+  resumo: db.resumo(), 
+  mensalistas: db.getState().mensalistas, 
+  avulsos: db.getState().avulsos,
+  configuracoes: db.getState().configuracoes 
+}));
 
-// Substitua o app.listen atual por este bloco:
+app.get('/api/vagas', authMiddleware, (req, res) => res.json({ totalVagas: db.getState().configuracoes?.totalVagas || 20 }));
+app.post('/api/vagas', authMiddleware, (req, res) => {
+  if (!db.getState().configuracoes) db.getState().configuracoes = { totalVagas: 20 };
+  db.getState().configuracoes.totalVagas = Number(req.body.totalVagas);
+  db.save();
+  res.json({ ok: true });
+});
+
+app.post('/api/acao/nova-semana', authMiddleware, (req, res) => { db.novaSemana(); res.json({ ok: true }); });
+app.post('/api/mensalista', authMiddleware, (req, res) => { db.addMensalista(req.body.telefone, req.body.nome); res.json({ ok: true }); });
+
 const port = process.env.PORT || 3000;
 app.listen(port, '0.0.0.0', () => {
     console.log(`Futebol Bot rodando na porta ${port}`);
