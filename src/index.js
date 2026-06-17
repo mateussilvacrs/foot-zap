@@ -1,34 +1,27 @@
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
-const { Database } = require('./database');
+const { Database, onlyDigits } = require('./database');
 const whatsapp = require('./whatsapp');
 const { handleCommand, formatResumo } = require('./handlers');
-const { startScheduler } = require('./scheduler');
 
 const app = express();
 const db = new Database();
 const services = { db, whatsapp };
 
 app.use(express.json({ limit: '2mb' }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static('public'));
 
 // Middleware de autenticação
 function authMiddleware(req, res, next) {
-  const token = req.headers['x-admin-token'];
-  if (process.env.ADMIN_API_TOKEN && token !== process.env.ADMIN_API_TOKEN) {
+  if (process.env.ADMIN_API_TOKEN && req.headers['x-admin-token'] !== process.env.ADMIN_API_TOKEN) 
     return res.status(401).json({ error: 'Não autorizado.' });
-  }
   next();
 }
 
-// Rotas de API
+// ROTAS QUE SEU INDEX.HTML CHAMA
 app.get('/api/status', (req, res) => res.json({ 
-  rodada: db.getState().rodada, 
-  aberto: db.getState().aberto, 
-  resumo: db.resumo(), 
-  mensalistas: db.getState().mensalistas, 
-  avulsos: db.getState().avulsos 
+  rodada: db.getState().rodada, aberto: db.getState().aberto, 
+  resumo: db.resumo(), mensalistas: db.getState().mensalistas, avulsos: db.getState().avulsos 
 }));
 
 app.get('/api/vagas', (req, res) => res.json({ totalVagas: db.getState().configuracoes.totalVagas }));
@@ -39,31 +32,8 @@ app.post('/api/vagas', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-// Rotas da Enquete
-app.post('/api/poll/create', authMiddleware, async (req, res) => {
-  await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
-  db.setPoll(req.body.question);
-  res.json({ ok: true });
-});
-
-app.post('/api/poll/close', authMiddleware, (req, res) => { db.closePoll(); res.json({ ok: true }); });
-
-app.post('/api/poll/liberar-avulsos', authMiddleware, async (req, res) => {
-  db.setAberto(true);
-  await whatsapp.sendGroupMessage(`🔥 Vagas abertas para Avulsos! Temos ${db.vagasRestantes()} vagas. Mande /querojogar`);
-  res.json({ ok: true });
-});
-
-app.post('/api/poll/finalizar', authMiddleware, async (req, res) => {
-  db.setAberto(false);
-  db.liberarAvulsos();
-  await whatsapp.sendGroupMessage(formatResumo(db));
-  res.json({ ok: true });
-});
-
-// Ações de Jogadores
-app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
-  db.updatePlayerStatus(req.params.telefone, req.body.status);
+app.post('/api/mensalista', authMiddleware, (req, res) => {
+  db.addMensalista(req.body.telefone, req.body.nome);
   res.json({ ok: true });
 });
 
@@ -77,13 +47,28 @@ app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/mensalista', authMiddleware, (req, res) => {
-  db.addMensalista(req.body.telefone, req.body.nome);
+app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
+  db.updatePlayerStatus(req.params.telefone, req.body.status);
   res.json({ ok: true });
 });
 
-app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
-  await whatsapp.sendGroupMessage(req.body.mensagem);
+app.post('/api/poll/create', authMiddleware, async (req, res) => {
+  await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
+  db.setPoll(req.body.question);
+  res.json({ ok: true });
+});
+
+app.post('/api/poll/close', authMiddleware, (req, res) => { db.closePoll(); res.json({ ok: true }); });
+
+app.post('/api/poll/liberar-avulsos', authMiddleware, async (req, res) => {
+  db.setAberto(true);
+  res.json({ ok: true });
+});
+
+app.post('/api/poll/finalizar', authMiddleware, async (req, res) => {
+  db.setAberto(false);
+  db.liberarAvulsos();
+  await whatsapp.sendGroupMessage(formatResumo(db));
   res.json({ ok: true });
 });
 
@@ -92,44 +77,33 @@ app.post('/api/acao/nova-semana', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-// WEBHOOK
+app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
+  await whatsapp.sendGroupMessage(req.body.mensagem);
+  res.json({ ok: true });
+});
 
+// WEBHOOK
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
+  const senderPhone = onlyDigits(req.body.data?.sender?.split('@')[0] || '');
+  const telefoneFinal = message.telefone || senderPhone;
   const pollUpdate = req.body.data?.message?.pollUpdateMessage;
 
   if (pollUpdate) {
-    console.log(`Diagnóstico: Enquete atualizada para o telefone: ${message.telefone}`);
-    
     try {
-      // Busca o estado real na API caso o webhook venha vazio
       const pollData = await whatsapp.getPollStatus(pollUpdate.pollCreationMessageKey.id);
-      
-      const votouSim = pollData.pollUpdates[0]?.voters?.some(v => v.includes(message.telefone));
-      const votouNao = pollData.pollUpdates[1]?.voters?.some(v => v.includes(message.telefone));
-      
-      const status = votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente');
-      const sucesso = db.updatePlayerStatus(message.telefone, status);
-      
-      console.log(`[Webhook] Jogador ${message.telefone} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha'}`);
-    } catch (e) {
-      console.error("Erro ao consultar estado da enquete:", e);
-    }
-    return res.json({ ok: true });
-  }
-
-  // Comandos de texto
-  if (!message.fromMe && message.text.startsWith('/')) {
-    const reply = await handleCommand(message, services);
-    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
+      if (pollData?.pollUpdates) {
+        const sim = pollData.pollUpdates[0]?.voters?.some(v => onlyDigits(v).includes(telefoneFinal));
+        const nao = pollData.pollUpdates[1]?.voters?.some(v => onlyDigits(v).includes(telefoneFinal));
+        db.updatePlayerStatus(telefoneFinal, sim ? 'sim' : (nao ? 'nao' : 'pendente'));
+      }
+    } catch (e) { console.error(e); }
+  } else if (!message.fromMe && message.text.startsWith('/')) {
+    const reply = await handleCommand({ ...message, telefone: telefoneFinal }, services);
+    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : telefoneFinal, reply);
   }
   res.json({ ok: true });
 });
 
-// ... (fim do arquivo)
-
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-    console.log(`Futebol Bot rodando na porta ${port}`);
-    startScheduler(services);
-});
+app.listen(port, () => console.log(`Rodando na porta ${port}`));
