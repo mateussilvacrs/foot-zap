@@ -93,30 +93,33 @@ app.post('/api/acao/nova-semana', authMiddleware, (req, res) => {
 });
 
 // WEBHOOK
+// ... (seu código de rotas permanece o mesmo) ...
+
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
   const pollUpdate = req.body.data?.message?.pollUpdateMessage;
 
-  // Atualização automática via enquete
   if (pollUpdate && pollUpdate.pollUpdates) {
-    const votouSim = pollUpdate.pollUpdates[0]?.voters?.includes(message.telefone) || false;
-    const votouNao = pollUpdate.pollUpdates[1]?.voters?.includes(message.telefone) || false;
+    const telefone = message.telefone; // Já vem limpo pelo whatsapp.js
     
-    let status = 'pendente';
-    if (votouSim) status = 'sim';
-    else if (votouNao) status = 'nao';
+    // Verificamos se o telefone do Webhook está em algum dos arrays de eleitores
+    const votouSim = pollUpdate.pollUpdates[0]?.voters?.some(v => onlyDigits(v) === telefone) || false;
+    const votouNao = pollUpdate.pollUpdates[1]?.voters?.some(v => onlyDigits(v) === telefone) || false;
     
-    db.updatePlayerStatus(message.telefone, status);
-    console.log(`Webhook: ${message.telefone} votou ${status}`);
+    const status = votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente');
+    
+    // ATUALIZAÇÃO FORÇADA: Ignora se era 'pendente' ou não
+    const sucesso = db.updatePlayerStatus(telefone, status);
+    
+    console.log(`[Webhook] Jogador ${telefone} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha (Telefone não cadastrado)'}`);
+    
     return res.json({ ok: true });
   }
 
-  // Comandos via texto
+  // Comandos de texto
   if (!message.fromMe && message.text.startsWith('/')) {
-    try {
-      const reply = await handleCommand(message, services);
-      if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
-    } catch (e) { console.error(e); }
+    const reply = await handleCommand(message, { db, whatsapp });
+    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
   }
   res.json({ ok: true });
 });
