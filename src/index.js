@@ -147,47 +147,39 @@ app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
 
   // --- LÓGICA DE ATUALIZAÇÃO AUTOMÁTICA VIA ENQUETE ---
-  const rawBody = req.body;
-  const isPollVote = rawBody.data?.message?.pollUpdateMessage || rawBody.message?.pollUpdateMessage;
+  const rawData = req.body.data || req.body;
+  const pollUpdate = rawData.message?.pollUpdateMessage;
 
-  if (isPollVote) {
-    console.log("VOTO DE ENQUETE DETECTADO! Processando...");
+  if (pollUpdate && pollUpdate.pollUpdates) {
+    console.log("VOTO DE ENQUETE DETECTADO! Processando via pollUpdates...");
     
-    // Extrai os dados do voto (formato padrão Evolution API)
-    const pollData = rawBody.data || rawBody;
-    const voteKey = pollData.message.pollUpdateMessage.vote;
-    const selectedOptions = voteKey.selectedOptions || [];
+    // O WhatsApp retorna um array de 'voters' (lista de telefones) para cada opção da enquete.
+    // pollUpdates[0] é a primeira opção (✅ Vou jogar)
+    // pollUpdates[1] é a segunda opção (❌ Não vou)
     
-    // Pegamos o telefone de quem votou
-    const telefoneVoto = message.telefone;
+    const telefone = message.telefone;
     
-    if (selectedOptions.length > 0) {
-      // O WhatsApp trabalha com hashes das opções, mas geralmente a ordem é mantida
-      // Se o jogador selecionou a primeira opção da enquete (✅ Vou jogar)
-      // Como não temos o hash exato agora, vamos checar se há votos
-      // Se houver votos na primeira opção (índice 0), marcamos como SIM
-      
-      // OBS: Esta lógica abaixo é uma implementação baseada no comportamento da Evolution v1/v2
-      // Ela vai marcar como 'sim' se ele votou na primeira opção que enviamos.
-      
-      const pollCreationId = pollData.message.pollUpdateMessage.pollCreationMessageKey.id;
-      
-      // Só processamos se for a enquete que o Bot enviou e está ativa
-      if (db.getState().poll.active) {
-        // Marcamos como 'sim' por padrão no teste. 
-        // Se houver mais de uma opção, a Evolution envia o índice ou hash.
-        db.updatePlayerStatus(telefoneVoto, 'sim');
-        console.log(`Status de ${telefoneVoto} atualizado para SIM via Enquete.`);
-      }
+    // Verifica se o seu telefone está dentro da lista de votos da opção 0 ou 1
+    const votouSim = pollUpdate.pollUpdates[0]?.voters?.includes(telefone) || false;
+    const votouNao = pollUpdate.pollUpdates[1]?.voters?.includes(telefone) || false;
+
+    if (votouSim) {
+      db.updatePlayerStatus(telefone, 'sim');
+      console.log(`Status de ${telefone} atualizado para SIM.`);
+    } else if (votouNao) {
+      db.updatePlayerStatus(telefone, 'nao');
+      console.log(`Status de ${telefone} atualizado para NAO.`);
     } else {
-      // Se ele desmarcou a opção, podemos voltar para pendente
-      db.updatePlayerStatus(telefoneVoto, 'pendente');
+      // Se não estiver em nenhum, significa que ele desmarcou a opção
+      db.updatePlayerStatus(telefone, 'pendente');
+      console.log(`Status de ${telefone} atualizado para PENDENTE.`);
     }
     
     return res.json({ ok: true, type: 'poll_handled' });
   }
   // ---------------------------------------------------
 
+  // Ignora mensagens enviadas pelo próprio bot ou mensagens vazias
   if (message.fromMe || !message.text) return res.json({ ok: true, ignored: true });
 
   try {
