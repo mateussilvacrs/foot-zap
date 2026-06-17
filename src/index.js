@@ -53,6 +53,18 @@ app.get('/api/status', authMiddleware, (req, res) => res.json({
   configuracoes: db.getState().configuracoes 
 }));
 
+app.post('/api/poll/create', authMiddleware, async (req, res) => {
+  try {
+    // Usa o ID do grupo que está no seu .env
+    await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
+    db.setPoll(req.body.question);
+    res.json({ ok: true });
+  } catch (e) { 
+    console.error("Erro ao criar enquete:", e);
+    res.status(500).json({ error: e.message }); 
+  }
+});
+
 app.get('/api/vagas', authMiddleware, (req, res) => res.json({ totalVagas: db.getState().configuracoes?.totalVagas || 20 }));
 app.post('/api/vagas', authMiddleware, (req, res) => {
   if (!db.getState().configuracoes) db.getState().configuracoes = { totalVagas: 20 };
