@@ -500,6 +500,7 @@
             <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
             <td>${badge(j.status)}</td>
             <td>
+              ${j.status !== 'espera' ? `<button class="btn-ghost btn-sm" title="Desistir" onclick="desistirAvulso('${j.telefone}','${j.nome}')">🚪</button>` : ''}
               <button class="btn-ghost btn-sm" title="Remover" onclick="removeAvulso('${j.telefone}')">🗑</button>
             </td>
           </tr>`).join('')
@@ -520,6 +521,12 @@
   window.removeAvulso = tel => {
     if (!confirm('Remover avulso?')) return;
     action(() => api(`/api/avulso/${tel}`, { method: 'DELETE' }), 'Avulso removido.');
+  };
+
+  window.desistirAvulso = (tel, nome) => {
+    if (!confirm(`Registrar desistência de ${nome}? O próximo da fila de espera será notificado automaticamente.`)) return;
+    action(() => api(`/api/avulso/${tel}/desistir`, { method: 'POST' }),
+           `Desistência de ${nome} registrada. Fila de espera atualizada!`);
   };
 
   // ── Botões de fluxo ────────────────────────────────────────────────────────
@@ -608,5 +615,5 @@
   setInterval(load, 10000);
 </script>
 </body>
-<footer>0.01</footer>
+<footer>0.02</footer>
 </html>

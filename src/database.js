@@ -179,6 +179,32 @@ class Database {
   }
 
   /**
+   * Remove um avulso da lista (confirmado ou espera) e, se ele estava confirmado,
+   * promove automaticamente o primeiro da fila de espera.
+   * Retorna { removido, promovido } onde promovido pode ser null.
+   */
+  desistirAvulso(telefone) {
+    const tel = onlyDigits(telefone);
+    const idx = this.state.avulsos.findIndex(a => a.telefone === tel);
+    if (idx === -1) return { removido: false, promovido: null };
+
+    const [jogador] = this.state.avulsos.splice(idx, 1);
+    let promovido = null;
+
+    // Se ele estava confirmado, abre uma vaga → promover primeiro da espera
+    if (jogador.status === 'confirmado') {
+      const proxEspera = this.state.avulsos.find(a => a.status === 'espera');
+      if (proxEspera) {
+        proxEspera.status = 'confirmado';
+        promovido = proxEspera;
+      }
+    }
+
+    this.save();
+    return { removido: true, jogador, promovido };
+  }
+
+  /**
    * Move avulsos da fila de espera para confirmado ao fechar a rodada.
    */
   liberarAvulsos() {

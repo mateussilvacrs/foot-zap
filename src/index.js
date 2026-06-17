@@ -310,6 +310,33 @@ app.post('/api/acao/resumo', authMiddleware, async (req, res) => {
   res.json({ ok: true, resumo: db.resumo() });
 });
 
+// Mensagem livre no grupo (corrige 404 do dashboard)
+app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
+  const mensagem = String(req.body.mensagem || '').trim();
+  if (!mensagem || mensagem.length < 2) {
+    return res.status(400).json({ error: 'Mensagem obrigatória.' });
+  }
+  await whatsapp.sendGroupMessage(mensagem).catch(e => console.error(e));
+  res.json({ ok: true });
+});
+
+// Avulso desiste — remove e promove próximo da fila de espera
+app.post('/api/avulso/:telefone/desistir', authMiddleware, async (req, res) => {
+  const { removido, jogador, promovido } = db.desistirAvulso(req.params.telefone);
+  if (!removido) return res.status(404).json({ error: 'Avulso não encontrado.' });
+
+  // Notifica o promovido via WhatsApp privado
+  if (promovido) {
+    const valor = db.getState().configuracoes.valorAvulso;
+    await whatsapp.sendPrivateMessage(
+      promovido.telefone,
+      `⚽ Boa notícia, ${promovido.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+    ).catch(e => db.log('Erro ao notificar promovido', { error: e.message }));
+  }
+
+  res.json({ ok: true, jogador, promovido });
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const port = process.env.PORT || 3000;

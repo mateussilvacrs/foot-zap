@@ -72,6 +72,7 @@ function mensagemAjuda(isAdmin = false) {
     '/confirmar sim  – Confirmar presença (mensalistas)',
     '/confirmar nao  – Registrar ausência (mensalistas)',
     '/querojogar      – Entrar como avulso',
+    '/desistir        – Desistir (avulsos)',
     '/lista           – Ver lista da rodada',
     '/ajuda           – Ver esta mensagem'
   ];
@@ -173,7 +174,7 @@ async function handleAdmin(command, context, services) {
 }
 
 async function handleCommand(context, services) {
-  const { db, sheets } = services;
+  const { db, sheets, whatsapp } = services;
   const text = String(context.text || '').trim();
   const lower = text.toLowerCase();
   const isAdmin = adminNumbers().includes(onlyDigits(context.telefone));
@@ -214,6 +215,26 @@ async function handleCommand(context, services) {
     return status === 'sim'
       ? `✅ Presença confirmada. Bom jogo, ${jogador.nome}! ⚽`
       : `👍 Ausência registrada. Valeu por avisar, ${jogador.nome}!`;
+  }
+
+  if (lower === '/desistir') {
+    const { removido, jogador, promovido } = db.desistirAvulso(context.telefone);
+    if (!removido) {
+      return 'Você não está na lista de avulsos nem na fila de espera.';
+    }
+
+    // Notifica o promovido da fila de espera via mensagem privada
+    if (promovido) {
+      const valor = db.getState().configuracoes.valorAvulso;
+      await whatsapp.sendPrivateMessage(
+        promovido.telefone,
+        `⚽ Boa notícia, ${promovido.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+      ).catch(e => db.log('Erro ao notificar promovido', { error: e.message }));
+    }
+
+    return jogador.status === 'espera'
+      ? `👍 Ok, ${jogador.nome}. Você saiu da fila de espera.`
+      : `👍 Desistência registrada, ${jogador.nome}. Até a próxima!${promovido ? `\n(${promovido.nome} foi promovido da fila de espera 🎉)` : ''}`;
   }
 
   if (lower === '/querojogar') {
