@@ -54,6 +54,21 @@ async function sendText(number, text) {
   }
 }
 
+// NOVA FUNÇÃO: Dispara a enquete usando a rota da Evolution
+async function sendPoll(number, name, options) {
+  const { instance } = requiredConfig();
+  if (!number) throw new Error('Destino do WhatsApp nao configurado.');
+
+  const payload = {
+    number,
+    name,
+    options,
+    selectableCount: 1
+  };
+
+  return await postEvolution(`/messages/sendPoll/${instance || ''}`, payload);
+}
+
 function sendGroupMessage(text) {
   return sendText(process.env.WHATSAPP_GROUP_ID, text);
 }
@@ -81,7 +96,6 @@ function extractWebhookMessage(body = {}) {
     
   const pushName = message.pushName || payload.pushName || message.notifyName || '';
   
-  // Extração do número com desvio do LID de privacidade do WhatsApp
   let senderJid = key.participant || message.participant || payload.participant || remoteJid;
   const altJid = key.participantAlt || message.participantAlt || payload.participantAlt;
 
@@ -99,13 +113,9 @@ function extractWebhookMessage(body = {}) {
     nome: pushName || telefone,
     remoteJid,
     isGroup,
-    fromMe
+    fromMe,
+    raw: body // Guardamos o payload inteiro pra investigar os votos de enquete depois
   };
 }
 
-module.exports = {
-  sendText,
-  sendGroupMessage,
-  sendPrivateMessage,
-  extractWebhookMessage
-};
+module.exports = { sendText, sendGroupMessage, sendPrivateMessage, sendPoll, extractWebhookMessage };

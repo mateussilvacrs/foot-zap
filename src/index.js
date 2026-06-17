@@ -5,7 +5,7 @@ const path = require('path');
 const { Database } = require('./database');
 const whatsapp = require('./whatsapp');
 const sheets = require('./sheets');
-const { handleCommand } = require('./handlers');
+const { handleCommand, formatResumo } = require('./handlers');
 const { startScheduler } = require('./scheduler');
 const { createRoutes } = require('./routes');
 
@@ -17,20 +17,90 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-app.get('/health', (req, res) => {
-  res.json({ ok: true, name: 'Futebol Bot', at: new Date().toISOString() });
+// Middleware de autenticação para as rotas administrativas
+function authMiddleware(req, res, next) {
+  const token = req.headers['x-admin-token'];
+  if (process.env.ADMIN_API_TOKEN && token !== process.env.ADMIN_API_TOKEN) {
+    return res.status(401).json({ error: 'Não autorizado. Verifique seu token.' });
+  }
+  next();
+}
+
+app.get('/health', (req, res) => res.json({ ok: true, name: 'Futebol Bot', at: new Date().toISOString() }));
+
+app.get('/api/status', (req, res) => {
+  res.json({
+    rodada: db.getState().rodada,
+    aberto: db.getState().aberto,
+    resumo: db.resumo(),
+    mensalistas: db.getState().mensalistas,
+    avulsos: db.getState().avulsos
+  });
 });
+
+app.get('/api/vagas', (req, res) => {
+  res.json({ totalVagas: db.getState().configuracoes.totalVagas });
+});
+
+app.post('/api/vagas', authMiddleware, (req, res) => {
+  const { totalVagas } = req.body;
+  const state = db.getState();
+  state.configuracoes.totalVagas = Number(totalVagas);
+  db.save();
+  res.json({ ok: true, totalVagas: state.configuracoes.totalVagas });
+});
+
+// --- NOVAS ROTAS DA ENQUETE E GERENCIAMENTO INDIVIDUAL ---
+
+app.post('/api/poll/create', authMiddleware, async (req, res) => {
+  try {
+    const question = req.body.question || '⚽ Confirmação - Futebol de Quarta';
+    const options = ['✅ Vou jogar', '❌ Não vou'];
+    const groupId = process.env.WHATSAPP_GROUP_ID;
+    
+    await whatsapp.sendPoll(groupId, question, options);
+    db.setPoll(question);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/poll/close', authMiddleware, async (req, res) => {
+  try {
+    db.closePoll();
+    db.setAberto(false);
+    db.liberarAvulsos();
+    const resumo = formatResumo(db);
+    await whatsapp.sendGroupMessage(resumo);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
+  const { status } = req.body; // 'sim', 'nao', 'pendente', 'confirmado', 'espera'
+  db.updatePlayerStatus(req.params.telefone, status);
+  res.json({ ok: true });
+});
+
+app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
+  db.removeAvulso(req.params.telefone);
+  res.json({ ok: true });
+});
+
+// -----------------------------------------------------------
 
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
 
-  if (message.fromMe || !message.text) {
-    return res.json({ ok: true, ignored: true });
+  // LOG TEMPORÁRIO PARA ENQUETES: Mostra no log quando alguém vota
+  if (req.body.data && req.body.data.message && req.body.data.message.pollUpdateMessage) {
+    console.log("VOTO DE ENQUETE DETECTADO!", JSON.stringify(req.body, null, 2));
   }
 
-  if (message.event && message.event !== 'MESSAGES_UPSERT' && message.event !== 'messages.upsert') {
-    return res.json({ ok: true, ignored: true, event: message.event });
-  }
+  if (message.fromMe || !message.text) return res.json({ ok: true, ignored: true });
 
   try {
     const reply = await handleCommand(message, services);
@@ -40,7 +110,6 @@ app.post('/webhook', async (req, res) => {
     }
     res.json({ ok: true, handled: Boolean(reply) });
   } catch (error) {
-    db.log('Erro no webhook', { error: error.message });
     console.error(error);
     res.status(500).json({ ok: false, error: 'Erro ao processar webhook.' });
   }
@@ -48,19 +117,6 @@ app.post('/webhook', async (req, res) => {
 
 app.use('/api', createRoutes(services));
 
-app.use((req, res) => {
-  res.status(404).json({ error: 'Rota nao encontrada.' });
-});
-
-app.use((error, req, res, next) => {
-  db.log('Erro HTTP', { error: error.message, path: req.path });
-  console.error(error);
-  res.status(500).json({ error: error.message || 'Erro interno.' });
-});
-
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Futebol Bot rodando na porta ${port}`);
-});
-
+app.listen(port, () => console.log(`Futebol Bot rodando na porta ${port}`));
 startScheduler(services);

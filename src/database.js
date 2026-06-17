@@ -21,6 +21,10 @@ function defaultState() {
   return {
     rodada: nextWednesday(),
     aberto: true,
+    poll: {
+      active: false,
+      question: ''
+    },
     mensalistas: [],
     avulsos: [],
     configuracoes: {
@@ -35,6 +39,7 @@ function defaultState() {
 function normalizeState(raw) {
   const state = { ...defaultState(), ...(raw || {}) };
   state.configuracoes = { ...defaultState().configuracoes, ...(raw && raw.configuracoes) };
+  state.poll = { ...defaultState().poll, ...(raw && raw.poll) };
   state.mensalistas = Array.isArray(state.mensalistas) ? state.mensalistas : [];
   state.avulsos = Array.isArray(state.avulsos) ? state.avulsos : [];
   state.logs = Array.isArray(state.logs) ? state.logs : [];
@@ -54,7 +59,6 @@ class Database {
       fs.writeFileSync(this.file, JSON.stringify(state, null, 2));
       return state;
     }
-
     const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
     return normalizeState(raw);
   }
@@ -69,11 +73,7 @@ class Database {
   }
 
   log(message, meta = {}) {
-    this.state.logs.unshift({
-      at: new Date().toISOString(),
-      message,
-      meta
-    });
+    this.state.logs.unshift({ at: new Date().toISOString(), message, meta });
     this.state.logs = this.state.logs.slice(0, 100);
     this.save();
   }
@@ -81,6 +81,7 @@ class Database {
   novaSemana(date = nextWednesday()) {
     this.state.rodada = date;
     this.state.aberto = true;
+    this.state.poll = { active: false, question: '' };
     this.state.mensalistas = this.state.mensalistas.map((jogador) => ({
       ...jogador,
       status: 'pendente'
@@ -93,6 +94,18 @@ class Database {
   setAberto(aberto) {
     this.state.aberto = Boolean(aberto);
     this.log(this.state.aberto ? 'Rodada aberta' : 'Rodada fechada');
+    return this.save();
+  }
+
+  setPoll(question) {
+    this.state.poll = { active: true, question };
+    this.log('Enquete criada', { question });
+    return this.save();
+  }
+
+  closePoll() {
+    this.state.poll.active = false;
+    this.log('Enquete fechada');
     return this.save();
   }
 
@@ -125,13 +138,26 @@ class Database {
   }
 
   confirmarMensalista(telefone, nome, status) {
-    if (!['sim', 'nao'].includes(status)) throw new Error('Status invalido.');
+    if (!['sim', 'nao', 'pendente'].includes(status)) throw new Error('Status invalido.');
     const jogador = this.findMensalista(telefone);
     if (!jogador) return null;
     jogador.nome = jogador.nome || nome || telefone;
     jogador.status = status;
     this.log('Confirmacao registrada', { telefone: jogador.telefone, status });
     return this.save();
+  }
+
+  updatePlayerStatus(telefone, status) {
+    const normalized = onlyDigits(telefone);
+    let player = this.state.mensalistas.find((j) => onlyDigits(j.telefone) === normalized);
+    if (!player) {
+      player = this.state.avulsos.find((j) => onlyDigits(j.telefone) === normalized);
+    }
+    if (player) {
+      player.status = status;
+      this.log('Status atualizado manualmente pelo admin', { telefone: normalized, status });
+      this.save();
+    }
   }
 
   addAvulso(telefone, nome) {
@@ -156,6 +182,12 @@ class Database {
     this.log('Avulso entrou na lista', { telefone: normalized, status });
     this.save();
     return { ok: true, jogador, repetido: false };
+  }
+
+  removeAvulso(telefone) {
+    const normalized = onlyDigits(telefone);
+    this.state.avulsos = this.state.avulsos.filter((jogador) => onlyDigits(jogador.telefone) !== normalized);
+    this.save();
   }
 
   totalConfirmados() {
@@ -192,6 +224,7 @@ class Database {
     return {
       rodada: this.state.rodada,
       aberto: this.state.aberto,
+      poll: this.state.poll,
       confirmados,
       ausentes,
       pendentes,
@@ -203,8 +236,4 @@ class Database {
   }
 }
 
-module.exports = {
-  Database,
-  onlyDigits,
-  nextWednesday
-};
+module.exports = { Database, onlyDigits, nextWednesday };

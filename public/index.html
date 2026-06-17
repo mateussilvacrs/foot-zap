@@ -15,392 +15,272 @@
         --accent: #1f8a4c;
         --accent-dark: #176b3a;
         --warn: #b75519;
+        --blue: #1976D2;
       }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100vh;
-        background: var(--bg);
-        color: var(--ink);
-        font-family: Arial, Helvetica, sans-serif;
-      }
-
-      header {
-        padding: 24px clamp(16px, 4vw, 48px);
-        background: #113d24;
-        color: white;
-      }
-
-      header h1 {
-        margin: 0 0 6px;
-        font-size: clamp(24px, 4vw, 38px);
-      }
-
-      header p {
-        margin: 0;
-        color: #cfe4d6;
-      }
-
-      main {
-        width: min(1180px, calc(100% - 32px));
-        margin: 24px auto 48px;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-      }
-
-      .card,
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-      }
-
-      .card {
-        padding: 16px;
-      }
-
-      .label {
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .value {
-        margin-top: 8px;
-        font-size: 30px;
-        font-weight: 700;
-      }
-
-      .panel {
-        margin-top: 18px;
-        padding: 18px;
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-      }
-
-      button {
-        min-height: 40px;
-        border: 0;
-        border-radius: 6px;
-        background: var(--accent);
-        color: white;
-        padding: 0 14px;
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      button.secondary {
-        background: #e7eee9;
-        color: var(--ink);
-      }
-
-      button.warn {
-        background: var(--warn);
-      }
-
-      button:hover {
-        background: var(--accent-dark);
-      }
-
-      input,
-      textarea {
-        width: 100%;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 10px;
-        font: inherit;
-      }
-
-      textarea {
-        min-height: 84px;
-        resize: vertical;
-      }
-
-      .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1.4fr auto;
-        gap: 10px;
-        align-items: end;
-      }
-
-      .columns {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 18px;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-
-      th,
-      td {
-        border-bottom: 1px solid var(--line);
-        padding: 10px 8px;
-        text-align: left;
-        vertical-align: top;
-      }
-
-      th {
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .status {
-        display: inline-block;
-        border-radius: 999px;
-        background: #e7eee9;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-weight: 700;
-      }
-
-      .topline {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        align-items: center;
-        margin-bottom: 14px;
-      }
-
-      #toast {
-        min-height: 20px;
-        color: var(--muted);
-        margin-top: 12px;
-      }
-
-      @media (max-width: 860px) {
-        .grid,
-        .columns,
-        .form-row {
-          grid-template-columns: 1fr;
-        }
-      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font-family: Arial, sans-serif; }
+      header { padding: 24px clamp(16px, 4vw, 48px); background: #113d24; color: white; }
+      header h1 { margin: 0 0 6px; font-size: clamp(24px, 4vw, 38px); }
+      header p { margin: 0; color: #cfe4d6; }
+      main { width: min(1180px, calc(100% - 32px)); margin: 24px auto 48px; }
+      
+      .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+      .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      @media (max-width: 860px) { .grid, .columns, .form-row { grid-template-columns: 1fr; } }
+      
+      .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+      .card { padding: 16px; }
+      .panel { margin-top: 18px; padding: 18px; }
+      
+      .label { color: var(--muted); font-size: 13px; }
+      .value { margin-top: 8px; font-size: 30px; font-weight: 700; }
+      
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;}
+      button { min-height: 36px; border: 0; border-radius: 6px; background: var(--accent); color: white; padding: 0 14px; font-weight: 700; cursor: pointer; }
+      button.secondary { background: #e7eee9; color: var(--ink); }
+      button.warn { background: var(--warn); }
+      button.blue { background: var(--blue); }
+      button.small { padding: 0 8px; min-height: 28px; font-size: 12px; margin-right: 4px; }
+      button:hover { opacity: 0.9; }
+      
+      input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: inherit; }
+      .form-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; align-items: end; }
+      
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: middle; }
+      th { color: var(--muted); font-size: 13px; }
+      .status { display: inline-block; border-radius: 999px; background: #e7eee9; padding: 4px 8px; font-size: 12px; font-weight: 700; }
+      .status.sim { background: #d4edda; color: #155724; }
+      .status.nao { background: #f8d7da; color: #721c24; }
+      
+      .topline { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 14px; }
+      #toast { min-height: 20px; color: var(--muted); margin-top: 12px; }
+      
+      /* Card Enquete */
+      .poll-card { background: #eaf3ff; border: 1px solid #bbdefb; }
+      .poll-status { font-weight: bold; color: var(--blue); }
+      .poll-status.fechada { color: var(--muted); }
     </style>
   </head>
   <body>
     <header>
-      <h1>Futebol Bot</h1>
-      <p>Painel administrativo da rodada semanal</p>
+      <h1>Futebol Bot Dashboard</h1>
+      <p>Gerenciamento completo da rodada e enquetes</p>
     </header>
 
     <main>
-      <section class="grid">
-        <div class="card">
-          <div class="label">Total jogadores</div>
-          <div class="value" id="totalJogadores">0</div>
-        </div>
-        <div class="card">
-          <div class="label">Confirmados</div>
-          <div class="value" id="confirmados">0</div>
-        </div>
-        <div class="card">
-          <div class="label">Ausentes</div>
-          <div class="value" id="ausentes">0</div>
-        </div>
-        <div class="card">
-          <div class="label">Vagas restantes</div>
-          <div class="value" id="vagas">0</div>
-        </div>
-      </section>
+      <div style="margin-bottom: 20px;">
+        <input type="password" id="adminToken" placeholder="Digite seu Token Administrativo aqui para habilitar ações" style="max-width: 400px;"/>
+      </div>
 
-      <section class="panel">
+      <section class="panel poll-card">
         <div class="topline">
           <div>
-            <strong id="rodada">Rodada</strong>
-            <div class="label" id="aberto">Carregando...</div>
+            <h2>📊 Enquete da Rodada</h2>
+            <div class="label">Status: <span id="pollStatus" class="poll-status">Carregando...</span></div>
           </div>
           <div class="label" id="updated"></div>
         </div>
-        <div style="margin: 0 0 14px">
-          <input id="adminToken" placeholder="Token administrativo opcional" />
-        </div>
         <div class="actions">
-          <button data-action="/api/acao/nova-semana">Nova semana</button>
-          <button data-action="/api/acao/convocacao">Convocar</button>
-          <button data-action="/api/acao/fechar" class="warn">Fechar</button>
-          <button data-action="/api/acao/abrir" class="secondary">Abrir</button>
-          <button data-action="/api/acao/resumo" class="secondary">Enviar resumo</button>
+          <button id="btnCreatePoll" class="blue">+ Nova Enquete (Mandar no Grupo)</button>
+          <button id="btnClosePoll" class="warn">🔒 Encerrar Enquete e Gerar Resumo</button>
+          <button data-action="/api/acao/nova-semana" class="secondary">🔄 Resetar Tudo (Nova Semana)</button>
         </div>
         <div id="toast"></div>
       </section>
 
-      <section class="panel">
-        <h2>Enviar mensagem</h2>
-        <textarea id="mensagem" placeholder="Mensagem para o grupo"></textarea>
-        <div style="margin-top: 10px">
-          <button id="sendMessage">Enviar</button>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Adicionar mensalista</h2>
-        <div class="form-row">
-          <label>
-            <span class="label">Telefone</span>
-            <input id="telefone" placeholder="5511999999999" />
-          </label>
-          <label>
-            <span class="label">Nome</span>
-            <input id="nome" placeholder="Nome do jogador" />
-          </label>
-          <button id="addMensalista">Salvar</button>
+      <section class="grid" style="margin-top: 18px;">
+        <div class="card"><div class="label">Total Jogadores</div><div class="value" id="totalJogadores">0</div></div>
+        <div class="card"><div class="label">Confirmados</div><div class="value" id="confirmados">0</div></div>
+        <div class="card"><div class="label">Ausentes</div><div class="value" id="ausentes">0</div></div>
+        <div class="card">
+          <div class="label">Vagas: <span id="vagasOcupadas">0</span> / <span id="vagasTotal">20</span></div>
+          <div class="value" id="vagas">0</div>
         </div>
       </section>
 
       <section class="columns">
         <div class="panel">
           <h2>Mensalistas</h2>
+          <div class="form-row" style="margin-bottom: 15px;">
+            <input id="telefone" placeholder="Tel: 5511999999999" />
+            <input id="nome" placeholder="Nome do Jogador" />
+            <button id="addMensalista">Adicionar</button>
+          </div>
           <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Telefone</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
+            <thead><tr><th>Nome</th><th>Telefone</th><th>Status</th><th>Ação Rápida</th></tr></thead>
             <tbody id="mensalistas"></tbody>
           </table>
         </div>
+        
         <div class="panel">
-          <h2>Avulsos</h2>
+          <h2>Avulsos (Fila de Espera)</h2>
           <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Telefone</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Nome</th><th>Telefone</th><th>Status</th><th>Ação Rápida</th></tr></thead>
             <tbody id="avulsos"></tbody>
           </table>
         </div>
       </section>
+
+      <section class="panel">
+        <h2>Ajustes</h2>
+        <div class="form-row" style="max-width: 400px;">
+          <input id="totalVagasInput" type="number" placeholder="Limite de vagas" />
+          <button id="btnSalvarVagas" class="secondary">Alterar Limite</button>
+        </div>
+      </section>
+
     </main>
 
     <script>
       const $ = (id) => document.getElementById(id);
+      function toast(msg) { $('toast').textContent = msg; setTimeout(() => $('toast').textContent='', 4000); }
 
-      function toast(message) {
-        $('toast').textContent = message;
-      }
+      $('adminToken').value = localStorage.getItem('futebolBotToken') || '';
+      $('adminToken').addEventListener('input', (e) => localStorage.setItem('futebolBotToken', e.target.value));
 
       async function request(path, options = {}) {
-        const token = localStorage.getItem('futebolBotToken') || $('adminToken')?.value || '';
-        if ($('adminToken') && $('adminToken').value) localStorage.setItem('futebolBotToken', $('adminToken').value);
-        const response = await fetch(path, {
-          headers: { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) },
-          ...options
-        });
-        if (!response.ok) throw new Error(await response.text());
+        const token = $('adminToken').value;
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['x-admin-token'] = token;
+        
+        const response = await fetch(path, { headers, ...options });
+        if (!response.ok) {
+          const err = await response.json().catch(()=>({}));
+          throw new Error(err.error || response.statusText);
+        }
         return response.json();
       }
 
-      $('adminToken').value = localStorage.getItem('futebolBotToken') || '';
-
-      function row(cells) {
-        return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
+      function getStatusClass(status) {
+        if (status === 'sim' || status === 'confirmado') return 'sim';
+        if (status === 'nao') return 'nao';
+        return '';
       }
 
       async function load() {
-        const data = await request('/api/status');
-        const resumo = data.resumo;
-        $('totalJogadores').textContent = resumo.totalJogadores;
-        $('confirmados').textContent = resumo.confirmados.length;
-        $('ausentes').textContent = resumo.ausentes.length;
-        $('vagas').textContent = resumo.vagasRestantes;
-        let dataFormatada = data.rodada || '-';
-        if (dataFormatada !== '-') {
-          dataFormatada = dataFormatada.split('-').reverse().join('/');
+        try {
+          const data = await request('/api/status');
+          const resumo = data.resumo;
+          const configVagas = await request('/api/vagas');
+          
+          $('totalJogadores').textContent = resumo.totalJogadores;
+          $('confirmados').textContent = resumo.confirmados.length;
+          $('ausentes').textContent = resumo.ausentes.length;
+          $('vagas').textContent = resumo.vagasRestantes;
+          $('vagasOcupadas').textContent = resumo.totalJogadores;
+          $('vagasTotal').textContent = configVagas.totalVagas;
+          $('totalVagasInput').value = configVagas.totalVagas;
+          
+          if(resumo.poll && resumo.poll.active) {
+            $('pollStatus').textContent = '🟢 Aberta (' + resumo.poll.question + ')';
+            $('pollStatus').className = 'poll-status';
+          } else {
+            $('pollStatus').textContent = '🔴 Fechada ou Não Iniciada';
+            $('pollStatus').className = 'poll-status fechada';
+          }
+          $('updated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+
+          // Render Mensalistas
+          $('mensalistas').innerHTML = data.mensalistas.map(j => `
+            <tr>
+              <td>${j.nome}</td>
+              <td>${j.telefone}</td>
+              <td><span class="status ${getStatusClass(j.status)}">${j.status || 'pendente'}</span></td>
+              <td>
+                <button class="secondary small" onclick="setStatus('${j.telefone}', 'sim')">✅</button>
+                <button class="secondary small" onclick="setStatus('${j.telefone}', 'nao')">❌</button>
+                <button class="warn small" onclick="removePlayer('${j.telefone}', 'mensalista')">🗑️</button>
+              </td>
+            </tr>
+          `).join('') || '<tr><td colspan="4">Nenhum mensalista</td></tr>';
+
+          // Render Avulsos
+          $('avulsos').innerHTML = data.avulsos.map(j => `
+            <tr>
+              <td>${j.nome}</td>
+              <td>${j.telefone}</td>
+              <td><span class="status ${getStatusClass(j.status)}">${j.status}</span></td>
+              <td>
+                <button class="secondary small" onclick="setStatus('${j.telefone}', 'confirmado')">✅</button>
+                <button class="secondary small" onclick="setStatus('${j.telefone}', 'espera')">⏳</button>
+                <button class="warn small" onclick="removePlayer('${j.telefone}', 'avulso')">🗑️</button>
+              </td>
+            </tr>
+          `).join('') || '<tr><td colspan="4">Nenhum avulso</td></tr>';
+
+        } catch (e) {
+          console.error(e);
         }
-        $('rodada').textContent = `Rodada ${dataFormatada}`;
-        $('aberto').textContent = data.aberto ? 'Confirmações abertas' : 'Confirmações fechadas';
-        $('updated').textContent = new Date().toLocaleTimeString('pt-BR');
-
-        $('mensalistas').innerHTML =
-          data.mensalistas
-            .map((jogador) =>
-              row([
-                jogador.nome,
-                jogador.telefone,
-                `<span class="status">${jogador.status || 'pendente'}</span>`,
-                `<button class="secondary" data-remove="${jogador.telefone}">Remover</button>`
-              ])
-            )
-            .join('') || row(['Nenhum mensalista', '', '', '']);
-
-        $('avulsos').innerHTML =
-          data.avulsos
-            .map((jogador) =>
-              row([jogador.nome, jogador.telefone, `<span class="status">${jogador.status}</span>`])
-            )
-            .join('') || row(['Nenhum avulso', '', '']);
       }
 
-      document.querySelectorAll('[data-action]').forEach((button) => {
-        button.addEventListener('click', async () => {
-          try {
-            await request(button.dataset.action, { method: 'POST', body: '{}' });
-            toast('Ação executada.');
-            await load();
-          } catch (error) {
-            toast(`Erro: ${error.message}`);
-          }
-        });
+      // Funções de Ação Rápida
+      window.setStatus = async (telefone, status) => {
+        try {
+          await request(`/api/player/${telefone}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+          load();
+        } catch (e) { toast('Erro: ' + e.message); }
+      };
+
+      window.removePlayer = async (telefone, tipo) => {
+        if(!confirm('Tem certeza que deseja remover?')) return;
+        try {
+          if (tipo === 'mensalista') await request(`/api/mensalista/${telefone}`, { method: 'DELETE' });
+          else await request(`/api/player/${telefone}/avulso`, { method: 'DELETE' });
+          load();
+        } catch (e) { toast('Erro: ' + e.message); }
+      };
+
+      // Botões Principais
+      $('btnCreatePoll').addEventListener('click', async () => {
+        const question = prompt('Digite a pergunta da enquete:', '⚽ Confirmação - Futebol de Quarta');
+        if (!question) return;
+        try {
+          toast('Enviando enquete para o WhatsApp...');
+          await request('/api/poll/create', { method: 'POST', body: JSON.stringify({ question }) });
+          toast('Enquete enviada com sucesso!');
+          load();
+        } catch (e) { toast('Erro: ' + e.message); }
+      });
+
+      $('btnClosePoll').addEventListener('click', async () => {
+        if(!confirm('Isso vai fechar a lista e mandar o resumo no grupo. Continuar?')) return;
+        try {
+          toast('Fechando e enviando resumo...');
+          await request('/api/poll/close', { method: 'POST' });
+          toast('Rodada fechada!');
+          load();
+        } catch (e) { toast('Erro: ' + e.message); }
       });
 
       $('addMensalista').addEventListener('click', async () => {
         try {
-          await request('/api/mensalista', {
-            method: 'POST',
-            body: JSON.stringify({ telefone: $('telefone').value, nome: $('nome').value })
-          });
-          $('telefone').value = '';
-          $('nome').value = '';
-          toast('Mensalista salvo.');
-          await load();
-        } catch (error) {
-          toast(`Erro: ${error.message}`);
-        }
+          await request('/api/mensalista', { method: 'POST', body: JSON.stringify({ telefone: $('telefone').value, nome: $('nome').value }) });
+          $('telefone').value = ''; $('nome').value = '';
+          load();
+        } catch (e) { toast('Erro: ' + e.message); }
       });
 
-      $('sendMessage').addEventListener('click', async () => {
+      $('btnSalvarVagas').addEventListener('click', async () => {
         try {
-          await request('/api/acao/mensagem', {
-            method: 'POST',
-            body: JSON.stringify({ mensagem: $('mensagem').value })
-          });
-          $('mensagem').value = '';
-          toast('Mensagem enviada.');
-        } catch (error) {
-          toast(`Erro: ${error.message}`);
-        }
+          await request('/api/vagas', { method: 'POST', body: JSON.stringify({ totalVagas: $('totalVagasInput').value }) });
+          toast('Limite atualizado.');
+          load();
+        } catch (e) { toast('Erro: ' + e.message); }
       });
 
-      $('mensalistas').addEventListener('click', async (event) => {
-        const telefone = event.target.dataset.remove;
-        if (!telefone) return;
-        await request(`/api/mensalista/${telefone}`, { method: 'DELETE' });
-        toast('Mensalista removido.');
-        await load();
+      document.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if(!confirm('Deseja executar esta ação?')) return;
+          try {
+            await request(btn.dataset.action, { method: 'POST', body: '{}' });
+            load();
+          } catch (e) { toast('Erro: ' + e.message); }
+        });
       });
 
-      load().catch((error) => toast(`Erro: ${error.message}`));
-      setInterval(() => load().catch(() => {}), 10000);
+      load();
+      setInterval(load, 10000); // Atualiza a tela sozinho a cada 10s
     </script>
   </body>
 </html>
