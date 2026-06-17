@@ -55,23 +55,22 @@ async function sendText(number, text) {
 }
 
 // NOVA FUNÇÃO: Dispara a enquete usando a rota da Evolution
-// NOVA FUNÇÃO: Dispara a enquete com proteção para plural/singular
-async function sendPoll(number, name, options) {
+
+// NOVA FUNÇÃO: Dispara a enquete (com o formato correto de 'values')
+async function sendPoll(number, name, optionsArray) {
   const { instance } = requiredConfig();
   if (!number) throw new Error('Destino do WhatsApp nao configurado.');
 
   const payload = {
     number,
     name,
-    options,
-    selectableCount: 1
+    selectableCount: 1,
+    values: optionsArray // <-- AQUI ESTAVA O SEGREDO! A Evolution exige a palavra "values"
   };
 
   try {
-    // Tenta primeiro a rota no plural
     return await postEvolution(`/messages/sendPoll/${instance || ''}`, payload);
   } catch (error) {
-    // Se a Evolution devolver 404, tenta na rota no singular (padrão de algumas versões)
     if (String(error.message).includes('404')) {
       return await postEvolution(`/message/sendPoll/${instance || ''}`, payload);
     }
