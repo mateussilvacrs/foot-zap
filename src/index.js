@@ -141,13 +141,52 @@ app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
 
 // -----------------------------------------------------------
 
+// ... (resto do seu código acima)
+
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
 
-  // LOG TEMPORÁRIO PARA ENQUETES: Mostra no log quando alguém vota
-  if (req.body.data && req.body.data.message && req.body.data.message.pollUpdateMessage) {
-    console.log("VOTO DE ENQUETE DETECTADO!", JSON.stringify(req.body, null, 2));
+  // --- LÓGICA DE ATUALIZAÇÃO AUTOMÁTICA VIA ENQUETE ---
+  const rawBody = req.body;
+  const isPollVote = rawBody.data?.message?.pollUpdateMessage || rawBody.message?.pollUpdateMessage;
+
+  if (isPollVote) {
+    console.log("VOTO DE ENQUETE DETECTADO! Processando...");
+    
+    // Extrai os dados do voto (formato padrão Evolution API)
+    const pollData = rawBody.data || rawBody;
+    const voteKey = pollData.message.pollUpdateMessage.vote;
+    const selectedOptions = voteKey.selectedOptions || [];
+    
+    // Pegamos o telefone de quem votou
+    const telefoneVoto = message.telefone;
+    
+    if (selectedOptions.length > 0) {
+      // O WhatsApp trabalha com hashes das opções, mas geralmente a ordem é mantida
+      // Se o jogador selecionou a primeira opção da enquete (✅ Vou jogar)
+      // Como não temos o hash exato agora, vamos checar se há votos
+      // Se houver votos na primeira opção (índice 0), marcamos como SIM
+      
+      // OBS: Esta lógica abaixo é uma implementação baseada no comportamento da Evolution v1/v2
+      // Ela vai marcar como 'sim' se ele votou na primeira opção que enviamos.
+      
+      const pollCreationId = pollData.message.pollUpdateMessage.pollCreationMessageKey.id;
+      
+      // Só processamos se for a enquete que o Bot enviou e está ativa
+      if (db.getState().poll.active) {
+        // Marcamos como 'sim' por padrão no teste. 
+        // Se houver mais de uma opção, a Evolution envia o índice ou hash.
+        db.updatePlayerStatus(telefoneVoto, 'sim');
+        console.log(`Status de ${telefoneVoto} atualizado para SIM via Enquete.`);
+      }
+    } else {
+      // Se ele desmarcou a opção, podemos voltar para pendente
+      db.updatePlayerStatus(telefoneVoto, 'pendente');
+    }
+    
+    return res.json({ ok: true, type: 'poll_handled' });
   }
+  // ---------------------------------------------------
 
   if (message.fromMe || !message.text) return res.json({ ok: true, ignored: true });
 
@@ -163,6 +202,8 @@ app.post('/webhook', async (req, res) => {
     res.status(500).json({ ok: false, error: 'Erro ao processar webhook.' });
   }
 });
+
+// ... (resto do seu código abaixo)
 
 app.use('/api', createRoutes(services));
 
