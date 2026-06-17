@@ -11,6 +11,11 @@ const services = { db, whatsapp };
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
+console.log("Iniciando o servidor...");
+require('dotenv').config();
+const express = require('express');
+
+
 // Rota do Webhook com prioridade no SENDER
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
