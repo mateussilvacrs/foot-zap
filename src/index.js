@@ -1,204 +1,68 @@
 require('dotenv').config();
-
 const express = require('express');
-const path = require('path');
 const { Database } = require('./database');
 const whatsapp = require('./whatsapp');
-const sheets = require('./sheets');
 const { handleCommand, formatResumo } = require('./handlers');
-const { startScheduler } = require('./scheduler');
-const { createRoutes } = require('./routes');
 
 const app = express();
 const db = new Database();
-const services = { db, whatsapp, sheets };
+const services = { db, whatsapp };
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.json());
+app.use(express.static('public'));
 
-// Middleware de autenticação para as rotas administrativas
 function authMiddleware(req, res, next) {
-  const token = req.headers['x-admin-token'];
-  if (process.env.ADMIN_API_TOKEN && token !== process.env.ADMIN_API_TOKEN) {
-    return res.status(401).json({ error: 'Não autorizado. Verifique seu token.' });
-  }
+  if (process.env.ADMIN_API_TOKEN && req.headers['x-admin-token'] !== process.env.ADMIN_API_TOKEN) 
+    return res.status(401).json({ error: 'Não autorizado.' });
   next();
 }
 
-app.get('/health', (req, res) => res.json({ ok: true, name: 'Futebol Bot', at: new Date().toISOString() }));
-
-app.get('/api/status', (req, res) => {
-  res.json({
-    rodada: db.getState().rodada,
-    aberto: db.getState().aberto,
-    resumo: db.resumo(),
-    mensalistas: db.getState().mensalistas,
-    avulsos: db.getState().avulsos
-  });
-});
-
-app.get('/api/vagas', (req, res) => {
-  res.json({ totalVagas: db.getState().configuracoes.totalVagas });
-});
-
-app.post('/api/vagas', authMiddleware, (req, res) => {
-  const { totalVagas } = req.body;
-  const state = db.getState();
-  state.configuracoes.totalVagas = Number(totalVagas);
-  db.save();
-  res.json({ ok: true, totalVagas: state.configuracoes.totalVagas });
-});
-
-// --- NOVAS ROTAS DA ENQUETE E GERENCIAMENTO INDIVIDUAL ---
-
-// --- NOVAS ROTAS DA ENQUETE E GERENCIAMENTO INDIVIDUAL ---
+// Rotas de Enquete e Status
+app.get('/api/status', (req, res) => res.json({ rodada: db.getState().rodada, aberto: db.getState().aberto, resumo: db.resumo(), mensalistas: db.getState().mensalistas, avulsos: db.getState().avulsos }));
 
 app.post('/api/poll/create', authMiddleware, async (req, res) => {
-  try {
-    const question = req.body.question || '⚽ Confirmação - Futebol de Quarta';
-    const options = ['✅ Vou jogar', '❌ Não vou'];
-    const groupId = process.env.WHATSAPP_GROUP_ID;
-    
-    await whatsapp.sendPoll(groupId, question, options);
-    db.setPoll(question);
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
+  db.setPoll(req.body.question);
+  res.json({ ok: true });
 });
 
-app.post('/api/poll/close', authMiddleware, async (req, res) => {
-  try {
-    // Apenas encerra a enquete visualmente no painel, não manda mensagem ainda
-    db.closePoll();
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+app.post('/api/poll/close', authMiddleware, (req, res) => { db.closePoll(); res.json({ ok: true }); });
 
 app.post('/api/poll/liberar-avulsos', authMiddleware, async (req, res) => {
-  try {
-    db.setAberto(true); // Libera o uso do /querojogar no WhatsApp
-    const vagas = db.vagasRestantes();
-    const mensagem = `🔥 *Vagas abertas para Avulsos!*\n\nTemos *${vagas} vagas* disponíveis para a pelada.\n\nQuem quiser jogar, mande *exatamente* o comando abaixo aqui no grupo ou no meu privado:\n\n*/querojogar*`;
-    
-    await whatsapp.sendGroupMessage(mensagem);
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  db.setAberto(true);
+  await whatsapp.sendGroupMessage(`🔥 Vagas abertas para Avulsos! Temos ${db.vagasRestantes()} vagas. Mande /querojogar`);
+  res.json({ ok: true });
 });
 
 app.post('/api/poll/finalizar', authMiddleware, async (req, res) => {
-  try {
-    db.setAberto(false); // Fecha a entrada de avulsos
-    db.liberarAvulsos(); // Move os avulsos de "espera" para "confirmado" se couber nas vagas
-    const resumo = formatResumo(db); // Gera o textão da lista final
-    await whatsapp.sendGroupMessage(resumo);
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  db.setAberto(false);
+  db.liberarAvulsos();
+  await whatsapp.sendGroupMessage(formatResumo(db));
+  res.json({ ok: true });
 });
 
 app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
-  const { status } = req.body; 
-  db.updatePlayerStatus(req.params.telefone, status);
+  db.updatePlayerStatus(req.params.telefone, req.body.status);
   res.json({ ok: true });
 });
 
-app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
-  db.removeAvulso(req.params.telefone);
-  res.json({ ok: true });
-});
-// -----------------------------------------------------------
-
-app.post('/api/poll/close', authMiddleware, async (req, res) => {
-  try {
-    db.closePoll();
-    db.setAberto(false);
-    db.liberarAvulsos();
-    const resumo = formatResumo(db);
-    await whatsapp.sendGroupMessage(resumo);
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
-  const { status } = req.body; // 'sim', 'nao', 'pendente', 'confirmado', 'espera'
-  db.updatePlayerStatus(req.params.telefone, status);
-  res.json({ ok: true });
-});
-
-app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
-  db.removeAvulso(req.params.telefone);
-  res.json({ ok: true });
-});
-
-// -----------------------------------------------------------
-
-// ... (resto do seu código acima)
-
+// Webhook Inteligente
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
-
-  // --- LÓGICA DE ATUALIZAÇÃO AUTOMÁTICA VIA ENQUETE ---
-  const rawData = req.body.data || req.body;
-  const pollUpdate = rawData.message?.pollUpdateMessage;
+  const pollUpdate = req.body.data?.message?.pollUpdateMessage;
 
   if (pollUpdate && pollUpdate.pollUpdates) {
-    console.log("VOTO DE ENQUETE DETECTADO! Processando via pollUpdates...");
-    
-    // O WhatsApp retorna um array de 'voters' (lista de telefones) para cada opção da enquete.
-    // pollUpdates[0] é a primeira opção (✅ Vou jogar)
-    // pollUpdates[1] é a segunda opção (❌ Não vou)
-    
-    const telefone = message.telefone;
-    
-    // Verifica se o seu telefone está dentro da lista de votos da opção 0 ou 1
-    const votouSim = pollUpdate.pollUpdates[0]?.voters?.includes(telefone) || false;
-    const votouNao = pollUpdate.pollUpdates[1]?.voters?.includes(telefone) || false;
-
-    if (votouSim) {
-      db.updatePlayerStatus(telefone, 'sim');
-      console.log(`Status de ${telefone} atualizado para SIM.`);
-    } else if (votouNao) {
-      db.updatePlayerStatus(telefone, 'nao');
-      console.log(`Status de ${telefone} atualizado para NAO.`);
-    } else {
-      // Se não estiver em nenhum, significa que ele desmarcou a opção
-      db.updatePlayerStatus(telefone, 'pendente');
-      console.log(`Status de ${telefone} atualizado para PENDENTE.`);
-    }
-    
-    return res.json({ ok: true, type: 'poll_handled' });
+    const votouSim = pollUpdate.pollUpdates[0]?.voters?.includes(message.telefone) || false;
+    const votouNao = pollUpdate.pollUpdates[1]?.voters?.includes(telefone) || false; // Ajustado para capturar telefone
+    db.updatePlayerStatus(message.telefone, votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente'));
+    return res.json({ ok: true });
   }
-  // ---------------------------------------------------
 
-  // Ignora mensagens enviadas pelo próprio bot ou mensagens vazias
-  if (message.fromMe || !message.text) return res.json({ ok: true, ignored: true });
-
-  try {
+  if (!message.fromMe && message.text.startsWith('/')) {
     const reply = await handleCommand(message, services);
-    if (reply) {
-      const destination = message.isGroup ? message.remoteJid : message.telefone;
-      await whatsapp.sendText(destination, reply);
-    }
-    res.json({ ok: true, handled: Boolean(reply) });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ ok: false, error: 'Erro ao processar webhook.' });
+    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
   }
+  res.json({ ok: true });
 });
 
-// ... (resto do seu código abaixo)
-
-app.use('/api', createRoutes(services));
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Futebol Bot rodando na porta ${port}`));
-startScheduler(services);
+app.listen(3000, () => console.log('Servidor rodando na porta 3000'));

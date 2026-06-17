@@ -11,124 +11,59 @@ function requiredConfig() {
 
 async function postEvolution(path, payload) {
   const { apiUrl, apiKey } = requiredConfig();
-  if (!apiUrl || !apiKey) {
-    console.log('[whatsapp:dry-run]', path, payload);
-    return { dryRun: true };
-  }
-
   const response = await fetch(`${apiUrl.replace(/\/$/, '')}${path}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: apiKey,
-      Authorization: `Bearer ${apiKey}`
-    },
+    headers: { 'Content-Type': 'application/json', apikey: apiKey, Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(payload)
   });
+  if (!response.ok) throw new Error(`Evolution API ${response.status}: ${await response.text()}`);
+  return response.json();
+}
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Evolution API ${response.status}: ${body}`);
+async function sendPoll(number, name, optionsArray) {
+  const { instance } = requiredConfig();
+  const payload = { number, name, selectableCount: 1, values: optionsArray };
+  try {
+    return await postEvolution(`/messages/sendPoll/${instance || ''}`, payload);
+  } catch (error) {
+    if (String(error.message).includes('404')) return await postEvolution(`/message/sendPoll/${instance || ''}`, payload);
+    throw error;
   }
-
-  return response.json().catch(() => ({ ok: true }));
 }
 
 async function sendText(number, text) {
   const { instance } = requiredConfig();
-  if (!number) throw new Error('Destino do WhatsApp nao configurado.');
-
-  const payload = {
-    number,
-    text,
-    options: { delay: 800, presence: 'composing' }
-  };
-
+  const payload = { number, text, options: { delay: 800, presence: 'composing' } };
   try {
     return await postEvolution(`/messages/sendText/${instance || ''}`, payload);
   } catch (error) {
-    if (String(error.message).includes('404')) {
-      return postEvolution(`/message/sendText/${instance || ''}`, payload);
-    }
+    if (String(error.message).includes('404')) return postEvolution(`/message/sendText/${instance || ''}`, payload);
     throw error;
   }
 }
 
-// NOVA FUNÇÃO: Dispara a enquete usando a rota da Evolution
-
-// NOVA FUNÇÃO: Dispara a enquete (com o formato correto de 'values')
-async function sendPoll(number, name, optionsArray) {
-  const { instance } = requiredConfig();
-  if (!number) throw new Error('Destino do WhatsApp nao configurado.');
-
-  const payload = {
-    number,
-    name,
-    selectableCount: 1,
-    values: optionsArray // <-- AQUI ESTAVA O SEGREDO! A Evolution exige a palavra "values"
-  };
-
-  try {
-    return await postEvolution(`/messages/sendPoll/${instance || ''}`, payload);
-  } catch (error) {
-    if (String(error.message).includes('404')) {
-      return await postEvolution(`/message/sendPoll/${instance || ''}`, payload);
-    }
-    throw error;
-  }
-}
-
-function sendGroupMessage(text) {
-  return sendText(process.env.WHATSAPP_GROUP_ID, text);
-}
-
-function sendPrivateMessage(telefone, text) {
-  return sendText(onlyDigits(telefone), text);
-}
+function sendGroupMessage(text) { return sendText(process.env.WHATSAPP_GROUP_ID, text); }
 
 function extractWebhookMessage(body = {}) {
-  const event = body.event || body.type || body.eventType;
   const payload = body.data || body;
   const message = payload.message || payload.messages?.[0] || payload;
   const key = message.key || payload.key || {};
   const remoteJid = key.remoteJid || message.remoteJid || payload.remoteJid || '';
-  const fromMe = Boolean(key.fromMe || message.fromMe);
-  const text =
-    message.message?.conversation ||
-    message.message?.extendedTextMessage?.text ||
-    message.conversation ||
-    message.extendedTextMessage?.text ||
-    message.text ||
-    message.body ||
-    payload.text ||
-    '';
-    
-  const pushName = message.pushName || payload.pushName || message.notifyName || '';
   
-// ... (dentro da função extractWebhookMessage)
   let senderJid = key.participant || message.participant || payload.participant || remoteJid;
   const altJid = key.participantAlt || message.participantAlt || payload.participantAlt;
 
-  // A MÁGICA ESTÁ AQUI: Se tivermos um AltJid (que contém o telefone), usamos ele
-  if (altJid && altJid.includes('@s.whatsapp.net')) {
-    senderJid = altJid;
-  } else if (senderJid && senderJid.includes('@lid') && altJid) {
-    senderJid = altJid;
-  }
-
-  const telefone = onlyDigits(senderJid.split('@')[0]);
-  const isGroup = remoteJid.endsWith('@g.us') || remoteJid === process.env.WHATSAPP_GROUP_ID;
+  // Prioriza o altJid que contém o telefone correto
+  if (altJid && altJid.includes('@s.whatsapp.net')) senderJid = altJid;
+  else if (senderJid && senderJid.includes('@lid') && altJid) senderJid = altJid;
 
   return {
-    event,
-    text: String(text || '').trim(),
-    telefone,
-    nome: pushName || telefone,
+    text: (message.message?.conversation || message.conversation || message.text || '').trim(),
+    telefone: onlyDigits(senderJid.split('@')[0]),
     remoteJid,
-    isGroup,
-    fromMe,
-    raw: body // Guardamos o payload inteiro pra investigar os votos de enquete depois
+    isGroup: remoteJid.endsWith('@g.us'),
+    fromMe: Boolean(key.fromMe || message.fromMe)
   };
 }
 
-module.exports = { sendText, sendGroupMessage, sendPrivateMessage, sendPoll, extractWebhookMessage };
+module.exports = { sendText, sendGroupMessage, sendPoll, extractWebhookMessage };
