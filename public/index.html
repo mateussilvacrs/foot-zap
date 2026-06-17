@@ -149,58 +149,24 @@
         return '';
       }
 
-      async function load() {
-        try {
-          const data = await request('/api/status');
-          const resumo = data.resumo;
-          const configVagas = await request('/api/vagas');
-          
-          $('totalJogadores').textContent = resumo.totalJogadores;
-          $('confirmados').textContent = resumo.confirmados.length;
-          $('avulsosConfirmados').textContent = resumo.avulsos.length;
-          $('vagas').textContent = resumo.vagasRestantes;
-          $('vagasOcupadas').textContent = resumo.totalJogadores;
-          $('vagasTotal').textContent = configVagas.totalVagas;
-          $('totalVagasInput').value = configVagas.totalVagas;
-          
-          if(resumo.poll && resumo.poll.active) {
-            $('pollStatus').textContent = '🟢 Aberta (' + resumo.poll.question + ')';
-            $('pollStatus').className = 'poll-status';
-          } else {
-            $('pollStatus').textContent = '🔴 Fechada ou Não Iniciada';
-            $('pollStatus').className = 'poll-status fechada';
-          }
-          
-          $('abertoStatus').textContent = data.aberto ? '🟢 Liberada para /querojogar' : '🔴 Bloqueada (Só mensalistas)';
-          $('abertoStatus').style.color = data.aberto ? 'green' : 'red';
-          $('updated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
-
-          $('mensalistas').innerHTML = data.mensalistas.map(j => `
-            <tr>
-              <td>${j.nome}</td><td>${j.telefone}</td>
-              <td><span class="status ${getStatusClass(j.status)}">${j.status || 'pendente'}</span></td>
-              <td>
-                <button class="secondary small" onclick="setStatus('${j.telefone}', 'sim')">✅</button>
-                <button class="secondary small" onclick="setStatus('${j.telefone}', 'nao')">❌</button>
-                <button class="warn small" onclick="removePlayer('${j.telefone}', 'mensalista')">🗑️</button>
-              </td>
-            </tr>
-          `).join('') || '<tr><td colspan="4">Nenhum mensalista</td></tr>';
-
-          $('avulsos').innerHTML = data.avulsos.map(j => `
-            <tr>
-              <td>${j.nome}</td><td>${j.telefone}</td>
-              <td><span class="status ${getStatusClass(j.status)}">${j.status}</span></td>
-              <td>
-                <button class="secondary small" onclick="setStatus('${j.telefone}', 'confirmado')">✅</button>
-                <button class="secondary small" onclick="setStatus('${j.telefone}', 'espera')">⏳</button>
-                <button class="warn small" onclick="removePlayer('${j.telefone}', 'avulso')">🗑️</button>
-              </td>
-            </tr>
-          `).join('') || '<tr><td colspan="4">Nenhum avulso</td></tr>';
-        } catch (e) { console.error(e); }
-      }
-
+async function load() {
+  try {
+    const data = await request('/api/status');
+    const resumo = data.resumo;
+    // O totalVagas agora vem dentro do data, não precisa de um segundo request!
+    const totalVagas = data.configuracoes?.totalVagas || 20; 
+    
+    $('totalJogadores').textContent = resumo.totalJogadores;
+    $('confirmados').textContent = resumo.confirmados.length;
+    $('avulsosConfirmados').textContent = resumo.avulsos.length;
+    $('vagas').textContent = resumo.vagasRestantes;
+    $('vagasOcupadas').textContent = resumo.totalJogadores;
+    $('vagasTotal').textContent = totalVagas;
+    $('totalVagasInput').value = totalVagas;
+    
+    // ... restante do seu código de preenchimento
+  } catch (e) { console.error(e); }
+}
       window.setStatus = async (telefone, status) => {
         try { await request(`/api/player/${telefone}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); load(); } 
         catch (e) { toast('Erro: ' + e.message); }
@@ -271,5 +237,5 @@
       setInterval(load, 10000);
     </script>
   </body>
-  <footer>Version 0.2</footer>
+  <footer>Version 0.3</footer>
 </html>

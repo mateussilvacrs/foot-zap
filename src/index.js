@@ -11,6 +11,11 @@ const services = { db, whatsapp };
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
+// Adicione esta rota no seu src/index.js
+app.get('/api/vagas', (req, res) => {
+  res.json({ totalVagas: db.getState().configuracoes?.totalVagas || 20 });
+});
+
 app.post('/webhook', async (req, res) => {
   const message = whatsapp.extractWebhookMessage(req.body);
   const senderPhone = onlyDigits(req.body.data?.sender?.split('@')[0] || '');
@@ -38,5 +43,8 @@ app.get('/api/status', (req, res) => res.json({ rodada: db.getState().rodada, ab
 app.post('/api/acao/nova-semana', (req, res) => { db.novaSemana(); res.json({ ok: true }); });
 app.post('/api/mensalista', (req, res) => { db.addMensalista(req.body.telefone, req.body.nome); res.json({ ok: true }); });
 
+// Substitua o app.listen atual por este bloco:
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Futebol Bot rodando na porta ${port}`));
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Futebol Bot rodando na porta ${port}`);
+});
