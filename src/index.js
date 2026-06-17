@@ -22,7 +22,7 @@ function authMiddleware(req, res, next) {
   next();
 }
 
-// Rotas de API
+// --- Rotas de API ---
 app.get('/api/status', (req, res) => res.json({ 
   rodada: db.getState().rodada, 
   aberto: db.getState().aberto, 
@@ -31,15 +31,6 @@ app.get('/api/status', (req, res) => res.json({
   avulsos: db.getState().avulsos 
 }));
 
-app.get('/api/vagas', (req, res) => res.json({ totalVagas: db.getState().configuracoes.totalVagas }));
-
-app.post('/api/vagas', authMiddleware, (req, res) => {
-  db.getState().configuracoes.totalVagas = Number(req.body.totalVagas);
-  db.save();
-  res.json({ ok: true });
-});
-
-// Rotas da Enquete
 app.post('/api/poll/create', authMiddleware, async (req, res) => {
   await whatsapp.sendPoll(process.env.WHATSAPP_GROUP_ID, req.body.question, ['✅ Vou jogar', '❌ Não vou']);
   db.setPoll(req.body.question);
@@ -61,72 +52,53 @@ app.post('/api/poll/finalizar', authMiddleware, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Ações de Jogadores
-app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
-  db.updatePlayerStatus(req.params.telefone, req.body.status);
-  res.json({ ok: true });
-});
-
-app.delete('/api/mensalista/:telefone', authMiddleware, (req, res) => {
-  db.removeMensalista(req.params.telefone);
-  res.json({ ok: true });
-});
-
-app.delete('/api/player/:telefone/avulso', authMiddleware, (req, res) => {
-  db.removeAvulso(req.params.telefone);
-  res.json({ ok: true });
-});
-
-app.post('/api/mensalista', authMiddleware, (req, res) => {
-  db.addMensalista(req.body.telefone, req.body.nome);
-  res.json({ ok: true });
-});
-
-app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
-  await whatsapp.sendGroupMessage(req.body.mensagem);
-  res.json({ ok: true });
-});
-
-app.post('/api/acao/nova-semana', authMiddleware, (req, res) => {
-  db.novaSemana();
-  res.json({ ok: true });
-});
-
-// WEBHOOK
-
+// --- WEBHOOK ---
 app.post('/webhook', async (req, res) => {
+  // Extrai a mensagem (o extractWebhookMessage já trata o sender/participant)
   const message = whatsapp.extractWebhookMessage(req.body);
+  
+  // Captura o sender do corpo do JSON da Evolution para ter certeza absoluta
+  const senderFromRaw = req.body.data?.sender || '';
+  const senderPhone = senderFromRaw.split('@')[0].replace(/\D/g, '');
+  
+  // Prioriza o telefone da mensagem, se falhar, usa o sender
+  const telefoneFinal = message.telefone || senderPhone;
+
   const pollUpdate = req.body.data?.message?.pollUpdateMessage;
 
+  // Atualização via Enquete
   if (pollUpdate) {
-    console.log(`Diagnóstico: Enquete atualizada para o telefone: ${message.telefone}`);
+    console.log(`Diagnóstico: Enquete recebida. Telefone detectado: ${telefoneFinal}`);
     
     try {
-      // Busca o estado real na API caso o webhook venha vazio
       const pollData = await whatsapp.getPollStatus(pollUpdate.pollCreationMessageKey.id);
       
-      const votouSim = pollData.pollUpdates[0]?.voters?.some(v => v.includes(message.telefone));
-      const votouNao = pollData.pollUpdates[1]?.voters?.some(v => v.includes(message.telefone));
-      
-      const status = votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente');
-      const sucesso = db.updatePlayerStatus(message.telefone, status);
-      
-      console.log(`[Webhook] Jogador ${message.telefone} votou: ${status}. Atualização: ${sucesso ? 'OK' : 'Falha'}`);
+      if (pollData && pollData.pollUpdates) {
+        const votouSim = pollData.pollUpdates[0]?.voters?.some(v => v.includes(telefoneFinal));
+        const votouNao = pollData.pollUpdates[1]?.voters?.some(v => v.includes(telefoneFinal));
+        
+        const status = votouSim ? 'sim' : (votouNao ? 'nao' : 'pendente');
+        const sucesso = db.updatePlayerStatus(telefoneFinal, status);
+        
+        console.log(`[Webhook] Jogador ${telefoneFinal} votou: ${status}. Salvo: ${sucesso}`);
+      }
     } catch (e) {
-      console.error("Erro ao consultar estado da enquete:", e);
+      console.error("Erro ao processar estado da enquete:", e);
     }
     return res.json({ ok: true });
   }
 
   // Comandos de texto
   if (!message.fromMe && message.text.startsWith('/')) {
-    const reply = await handleCommand(message, services);
-    if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : message.telefone, reply);
+    try {
+      const reply = await handleCommand({ ...message, telefone: telefoneFinal }, services);
+      if (reply) await whatsapp.sendText(message.isGroup ? message.remoteJid : telefoneFinal, reply);
+    } catch (e) { 
+      console.error("Erro ao processar comando:", e); 
+    }
   }
   res.json({ ok: true });
 });
-
-// ... (fim do arquivo)
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

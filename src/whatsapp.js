@@ -21,19 +21,22 @@ async function postEvolution(path, payload, method = 'POST') {
 }
 
 async function getPollStatus(messageId) {
-  const { instance } = requiredConfig();
-  const data = await postEvolution(`/message/find/${instance}?messageId=${messageId}`, null, 'GET');
-  return data.message.pollUpdateMessage;
+  try {
+    const { instance } = requiredConfig();
+    const data = await postEvolution(`/message/find/${instance}?messageId=${messageId}`, null, 'GET');
+    return data.message?.pollUpdateMessage || null;
+  } catch (e) {
+    console.error("Erro ao buscar status da enquete:", e.message);
+    return null;
+  }
 }
 
 async function sendPoll(number, name, optionsArray) {
-  const { instance } = requiredConfig();
-  return postEvolution(`/messages/sendPoll/${instance || ''}`, { number, name, selectableCount: 1, values: optionsArray });
+  return postEvolution(`/messages/sendPoll/${process.env.EVOLUTION_INSTANCE || ''}`, { number, name, selectableCount: 1, values: optionsArray });
 }
 
 async function sendText(number, text) {
-  const { instance } = requiredConfig();
-  return postEvolution(`/messages/sendText/${instance || ''}`, { number, text, options: { delay: 800 } });
+  return postEvolution(`/messages/sendText/${process.env.EVOLUTION_INSTANCE || ''}`, { number, text, options: { delay: 800 } });
 }
 
 function extractWebhookMessage(body = {}) {
