@@ -308,10 +308,18 @@
 
   <!-- Mensagem livre -->
   <div class="panel">
-    <h2>Mensagem no Grupo</h2>
-    <textarea id="mensagem" placeholder="Escreva uma mensagem para enviar ao grupo…"></textarea>
-    <div style="margin-top:10px">
-      <button class="btn-green" id="btnSendMsg">Enviar mensagem</button>
+    <h2>Enviar Mensagem</h2>
+    <textarea id="mensagem" placeholder="Escreva uma mensagem…"></textarea>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <select id="msgDestino" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:7px 11px;font-size:13px">
+        <option value="grupo">📢 Enviar no grupo</option>
+        <option value="admins">🔐 Enviar só para admins (privado)</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--muted)" id="labelMencionar">
+        <input type="checkbox" id="chkMencionarTodos" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)" />
+        @todos
+      </label>
+      <button class="btn-green" id="btnSendMsg">Enviar</button>
     </div>
   </div>
 
@@ -365,84 +373,97 @@
     </div>
   </div>
 
+  <!-- Admins -->
+  <div class="panel" style="max-width:680px">
+    <h2>👑 Administradores</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+      Admins podem usar <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/admin</code> no privado do bot. Ao adicionar, o jogador recebe notificação automática.
+    </p>
+    <div class="form-row">
+      <input id="inpAdminTel"  placeholder="5511999999999" style="flex:1.2"/>
+      <input id="inpAdminNome" placeholder="Nome (opcional)" style="flex:2"/>
+      <button class="btn-purple" id="btnAddAdmin" style="flex-shrink:0">+ Adicionar</button>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Telefone</th><th>Nome</th><th>Adicionado em</th><th></th></tr></thead>
+      <tbody id="tbodyAdmins"></tbody>
+    </table>
+  </div>
+
+  <!-- Mensais -->
+  <div class="panel">
+    <h2>💳 Cadastro de Mensais</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+      Gerencie os jogadores mensais. Após confirmar o pagamento, clique em ✅ Aprovar — o jogador entra na lista como <strong>pendente</strong> e participa da enquete semanal normalmente.
+    </p>
+    <div class="form-row">
+      <input id="inpMensalTel"  placeholder="5511999999999" style="flex:1.2"/>
+      <input id="inpMensalNome" placeholder="Nome" style="flex:2"/>
+      <input id="inpMensalObs"  placeholder="Obs (ex: Pix enviado)" style="flex:2"/>
+      <button class="btn-green" id="btnAddMensal" style="flex-shrink:0">+ Cadastrar</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Nome</th><th>Telefone</th><th>Obs</th><th>Status</th><th>Aprovado em</th><th></th></tr>
+      </thead>
+      <tbody id="tbodyMensais"></tbody>
+    </table>
+  </div>
+
   <!-- Comandos personalizados -->
   <div class="panel">
     <h2>Comandos Personalizados</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:16px">
-      Crie atalhos respondidos pelo bot no grupo ou no privado.
-      Variáveis para contador: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">{valor}</code> e <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">{jogos}</code>.
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+      Crie atalhos que os jogadores podem usar no grupo.
+      Ex: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/pix</code> → mensagem fixa. &nbsp;|&nbsp;
+      <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/nauan</code> → contador de faltas (incrementa a cada uso).
     </p>
 
-    <!-- Linha 1: gatilho + descrição + tipo -->
-    <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;margin-bottom:8px">
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Gatilho</div>
-        <input id="cmdGatilho" placeholder="/gol  (/ é opcional)" />
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Descrição (aparece no /ajuda)</div>
-        <input id="cmdDescricao" placeholder="Ex: Registra um gol do Mateus" />
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Tipo</div>
-        <select id="cmdTipo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
-          <option value="mensagem">💬 Mensagem fixa</option>
-          <option value="contador">🔢 Contador</option>
-          <option value="lista">📋 Envia a lista</option>
-          <option value="resumo">📊 Envia o resumo</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Linha 2: permissão + escopo -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">👤 Quem pode usar</div>
-        <select id="cmdPermissao" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
-          <option value="todos">Todos os participantes</option>
-          <option value="admin">Somente admins</option>
-        </select>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">📍 Onde funciona</div>
-        <select id="cmdEscopo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
-          <option value="ambos">Grupo e privado</option>
-          <option value="grupo">Somente no grupo</option>
-          <option value="privado">Somente no privado do bot</option>
-        </select>
-      </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+      <input id="cmdGatilho"   placeholder="/nauan  (/ é opcional)" />
+      <input id="cmdDescricao" placeholder="Descrição curta (aparece no /ajuda)" />
+      <select id="cmdTipo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px">
+        <option value="mensagem">💬 Mensagem fixa</option>
+        <option value="contador">🔢 Contador de faltas</option>
+        <option value="lista">📋 Envia a lista</option>
+        <option value="resumo">📊 Envia o resumo</option>
+      </select>
     </div>
 
     <!-- Campos para mensagem fixa -->
     <div id="camposMensagem" style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:16px">
-      <textarea id="cmdResposta" placeholder="Texto que o bot responde quando alguém usar o comando" style="min-height:64px"></textarea>
+      <textarea id="cmdResposta" placeholder="Texto que o bot responde" style="min-height:64px"></textarea>
       <button class="btn-green" id="btnAddCmd" style="align-self:end;height:36px">+ Criar</button>
     </div>
 
-    <!-- Campos para contador genérico -->
+    <!-- Campos para contador -->
     <div id="camposContador" style="display:none;margin-bottom:16px">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Incremento por uso</div>
-          <input id="cntIncremento" type="number" min="1" value="1" placeholder="1" />
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Nome exibido na mensagem</div>
+          <input id="cntNome" placeholder="ex: Nauan" />
         </div>
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Jogos por ciclo <span style="opacity:.6">(0 = conta uso a uso)</span></div>
-          <input id="cntCiclo" type="number" min="0" value="0" placeholder="0" />
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Faltas por uso</div>
+          <input id="cntIncremento" type="number" min="1" value="1" />
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Faltas por jogo</div>
+          <input id="cntCiclo" type="number" min="1" value="12" />
         </div>
         <button class="btn-green" id="btnAddCmdContador" style="height:36px">+ Criar</button>
       </div>
       <div style="margin-top:8px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
-          Template da mensagem &nbsp;<span style="opacity:.6">variáveis: {valor} = contador atual &nbsp; {jogos} = número de jogos</span>
+          Template da mensagem &nbsp;<span style="opacity:.6">variáveis: {nome} {faltas} {jogos}</span>
         </div>
-        <input id="cntTemplate" placeholder="Ex: ⚽ Mateus marcou {valor} gol(s) em {jogos} jogo(s)" />
+        <input id="cntTemplate" placeholder="{nome} pediu {faltas} falta(s) em apenas {jogos} jogo(s)" />
       </div>
     </div>
 
     <table>
       <thead>
-        <tr><th>Gatilho</th><th>Tipo</th><th>Permissão</th><th>Escopo</th><th>Info / Placar</th><th>Ativo</th><th></th></tr>
+        <tr><th>Gatilho</th><th>Tipo</th><th>Info</th><th>Placar</th><th>Ativo</th><th></th></tr>
       </thead>
       <tbody id="tbodyComandos"></tbody>
     </table>
@@ -450,11 +471,41 @@
 
 </main>
 
+<!-- Modal de edição de comando -->
+<div id="modalCmd" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:14px">
+    <h3 style="margin:0;font-size:15px">Editar Comando <code id="modalCmdGatilho" style="font-family:var(--mono);color:var(--green)"></code></h3>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Resposta / Template</div>
+      <textarea id="modalCmdResposta" style="min-height:72px;width:100%"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">👤 Quem pode usar</div>
+        <select id="modalCmdPermissao" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
+          <option value="todos">Todos os participantes</option>
+          <option value="admin">Somente admins</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">📍 Onde funciona</div>
+        <select id="modalCmdEscopo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
+          <option value="ambos">Grupo e privado</option>
+          <option value="grupo">Somente no grupo</option>
+          <option value="privado">Somente no privado</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-ghost" id="modalCmdCancelar">Cancelar</button>
+      <button class="btn-green" id="modalCmdSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
-  // ── Utilitários ────────────────────────────────────────────────────────────
-
   const $ = id => document.getElementById(id);
 
   let toastTimer;
@@ -470,11 +521,7 @@
     const token = $('adminToken').value.trim();
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['x-admin-token'] = token;
-    const res = await fetch(path, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined
-    });
+    const res = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data;
@@ -485,35 +532,19 @@
       await fn();
       toast(successMsg || 'Pronto!', 'ok');
       load();
-    } catch (e) {
-      toast('Erro: ' + e.message, 'err');
-    }
+    } catch (e) { toast('Erro: ' + e.message, 'err'); }
   }
 
   function badge(status) {
-    const map = {
-      sim:        'sim',
-      nao:        'nao',
-      confirmado: 'confirmado',
-      espera:     'espera',
-      pendente:   'pendente'
-    };
-    const cls = map[status] || 'pendente';
-    const labels = { sim: '✅ sim', nao: '❌ não', confirmado: '✅ confirmado',
-                     espera: '⏳ espera', pendente: '— pendente' };
-    return `<span class="badge ${cls}">${labels[status] || status}</span>`;
+    const labels = { sim:'✅ sim', nao:'❌ não', confirmado:'✅ confirmado', espera:'⏳ espera', pendente:'— pendente' };
+    return `<span class="badge ${status||'pendente'}">${labels[status]||status}</span>`;
   }
 
-  // ── Auth feedback ──────────────────────────────────────────────────────────
-
+  // ── Auth ──────────────────────────────────────────────────────────────────
   $('adminToken').value = localStorage.getItem('fbToken') || '';
-  $('adminToken').addEventListener('input', e => {
-    localStorage.setItem('fbToken', e.target.value);
-    $('authDot').className = '';
-  });
+  $('adminToken').addEventListener('input', e => { localStorage.setItem('fbToken', e.target.value); $('authDot').className = ''; });
 
-  // ── Carga principal ────────────────────────────────────────────────────────
-
+  // ── Load principal ────────────────────────────────────────────────────────
   async function load() {
     let data;
     try {
@@ -521,325 +552,324 @@
       $('authDot').className = 'ok';
     } catch (e) {
       $('authDot').className = 'err';
-      if (e.message.toLowerCase().includes('autorizado') || e.message.includes('401')) {
-        toast('Token inválido ou ausente.', 'err');
-      }
+      if (e.message.includes('autorizado') || e.message.includes('401')) toast('Token inválido ou ausente.', 'err');
       return;
     }
 
-    const resumo = data.resumo;
-    const vagas  = data.configuracoes?.totalVagas || 20;
-    const rodada = data.rodada || '–';
-
-    // Header chip
-    $('rodadaChip').textContent = rodada;
-
-    // Stats
+    const resumo = data.resumo, vagas = data.configuracoes?.totalVagas || 20;
+    $('rodadaChip').textContent = data.rodada || '–';
     $('numConfirmados').textContent = resumo.totalJogadores;
     $('numAusentes').textContent    = resumo.ausentes.length;
     $('numPendentes').textContent   = resumo.pendentes.length;
     $('numVagas').textContent       = resumo.vagasRestantes;
     $('subVagas').textContent       = `de ${vagas} total`;
-
-    // Status pills
-    const pollActive = Boolean(data.pollId);
-    $('pollPill').innerHTML = pollActive
+    $('pollPill').innerHTML = data.pollId
       ? '<span class="pill green">🟢 Enquete ativa</span>'
       : '<span class="pill muted">⚫ Sem enquete</span>';
-
     $('abertoStatus').innerHTML = data.aberto
       ? '<span class="pill green">🔓 Aberto para avulsos</span>'
       : '<span class="pill red">🔒 Fechado para avulsos</span>';
-
     $('updatedAt').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
-
-    // Vagas input
     $('inpVagas').value = vagas;
 
     // Tabela mensalistas
-    const mens = data.mensalistas || [];
-    $('tbodyMens').innerHTML = mens.length
-      ? mens.map((j, i) => `
-          <tr>
-            <td style="color:var(--muted)">${i + 1}</td>
-            <td>${j.nome}</td>
-            <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
-            <td>${badge(j.status || 'pendente')}</td>
-            <td>
-              <button class="btn-ghost btn-sm" title="Confirmar" onclick="setStatus('${j.telefone}','sim')">✅</button>
-              <button class="btn-ghost btn-sm" title="Ausente"   onclick="setStatus('${j.telefone}','nao')">❌</button>
-              <button class="btn-ghost btn-sm" title="Remover"   onclick="removeMens('${j.telefone}')">🗑</button>
-            </td>
-          </tr>`).join('')
+    $('tbodyMens').innerHTML = (data.mensalistas||[]).length
+      ? data.mensalistas.map((j,i) => `<tr>
+          <td style="color:var(--muted)">${i+1}</td>
+          <td>${j.nome}</td>
+          <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
+          <td>${badge(j.status||'pendente')}</td>
+          <td>
+            <button class="btn-ghost btn-sm" onclick="setStatus('${j.telefone}','sim')">✅</button>
+            <button class="btn-ghost btn-sm" onclick="setStatus('${j.telefone}','nao')">❌</button>
+            <button class="btn-ghost btn-sm" onclick="removeMens('${j.telefone}')">🗑</button>
+          </td></tr>`).join('')
       : '<tr><td colspan="5" class="empty">Nenhum mensalista cadastrado.</td></tr>';
 
     // Tabela avulsos
-    const avulsos = data.avulsos || [];
-    $('tbodyAvulsos').innerHTML = avulsos.length
-      ? avulsos.map((j, i) => `
-          <tr>
-            <td style="color:var(--muted)">${i + 1}</td>
-            <td>${j.nome}</td>
-            <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
-            <td>${badge(j.status)}</td>
-            <td>
-              ${j.status !== 'espera' ? `<button class="btn-ghost btn-sm" title="Desistir" onclick="desistirAvulso('${j.telefone}','${j.nome}')">🚪</button>` : ''}
-              <button class="btn-ghost btn-sm" title="Remover" onclick="removeAvulso('${j.telefone}')">🗑</button>
-            </td>
-          </tr>`).join('')
+    $('tbodyAvulsos').innerHTML = (data.avulsos||[]).length
+      ? data.avulsos.map((j,i) => `<tr>
+          <td style="color:var(--muted)">${i+1}</td>
+          <td>${j.nome}</td>
+          <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
+          <td>${badge(j.status)}</td>
+          <td>
+            ${j.status !== 'espera' ? `<button class="btn-ghost btn-sm" title="Desistir" onclick="desistirAvulso('${j.telefone}','${j.nome}')">🚪</button>` : ''}
+            <button class="btn-ghost btn-sm" onclick="removeAvulso('${j.telefone}')">🗑</button>
+          </td></tr>`).join('')
       : '<tr><td colspan="5" class="empty">Nenhum avulso ainda.</td></tr>';
   }
 
-  // ── Ações individuais ──────────────────────────────────────────────────────
-
-  window.setStatus = (tel, status) =>
-    action(() => api(`/api/player/${tel}/status`, { method: 'PATCH', body: { status } }),
-           'Status atualizado.');
-
-  window.removeMens = tel => {
-    if (!confirm('Remover mensalista?')) return;
-    action(() => api(`/api/mensalista/${tel}`, { method: 'DELETE' }), 'Mensalista removido.');
-  };
-
-  window.removeAvulso = tel => {
-    if (!confirm('Remover avulso?')) return;
-    action(() => api(`/api/avulso/${tel}`, { method: 'DELETE' }), 'Avulso removido.');
-  };
-
+  // ── Ações individuais ─────────────────────────────────────────────────────
+  window.setStatus = (tel, status) => action(() => api(`/api/player/${tel}/status`, { method:'PATCH', body:{status} }), 'Status atualizado.');
+  window.removeMens = tel => { if(!confirm('Remover mensalista?')) return; action(() => api(`/api/mensalista/${tel}`,{method:'DELETE'}),'Mensalista removido.'); };
+  window.removeAvulso = tel => { if(!confirm('Remover avulso?')) return; action(() => api(`/api/avulso/${tel}`,{method:'DELETE'}),'Avulso removido.'); };
   window.desistirAvulso = (tel, nome) => {
-    if (!confirm(`Registrar desistência de ${nome}? O próximo da fila de espera será notificado automaticamente.`)) return;
-    action(() => api(`/api/avulso/${tel}/desistir`, { method: 'POST' }),
-           `Desistência de ${nome} registrada. Fila de espera atualizada!`);
+    if(!confirm(`Registrar desistência de ${nome}?`)) return;
+    action(() => api(`/api/avulso/${tel}/desistir`,{method:'POST'}), `Desistência de ${nome} registrada.`);
   };
 
-  // ── Botões de fluxo ────────────────────────────────────────────────────────
-
+  // ── Fluxo ─────────────────────────────────────────────────────────────────
   $('btnNovaS').addEventListener('click', () => {
-    const rodada = prompt('Data da rodada (AAAA-MM-DD):', new Date().toISOString().slice(0, 10));
-    if (rodada === null) return;
-    action(() => api('/api/acao/nova-semana', { method: 'POST', body: { rodada } }),
-           'Semana resetada. Todos os mensalistas voltaram para pendente.');
+    const rodada = prompt('Data da rodada (AAAA-MM-DD):',new Date().toISOString().slice(0,10));
+    if(rodada===null) return;
+    action(()=>api('/api/acao/nova-semana',{method:'POST',body:{rodada}}),'Semana resetada.');
   });
-
   $('btnEnviarEnquete').addEventListener('click', () => {
-    const question = prompt('Título da enquete:', '⚽ Futebol de Quarta — você vai?');
-    if (!question) return;
-    action(() => api('/api/poll/create', { method: 'POST', body: { question } }),
-           'Enquete enviada no grupo!');
+    const q = prompt('Título da enquete:','⚽ Futebol de Quarta — você vai?');
+    if(!q) return;
+    action(()=>api('/api/poll/create',{method:'POST',body:{question:q}}),'Enquete enviada!');
   });
-
   $('btnResetarEnquete').addEventListener('click', () => {
-    if (!confirm('Isso volta todos os mensalistas para pendente. Continuar?')) return;
-    action(() => api('/api/poll/reset', { method: 'POST' }),
-           'Enquete resetada. Todos os mensalistas voltaram para pendente.');
+    if(!confirm('Volta todos para pendente. Continuar?')) return;
+    action(()=>api('/api/poll/reset',{method:'POST'}),'Enquete resetada.');
   });
-
   $('btnAbrirAvulsos').addEventListener('click', () => {
-    if (!confirm('Liberar /querojogar para avulsos?')) return;
-    action(() => api('/api/acao/abrir', { method: 'POST' }), 'Avulsos liberados!');
+    if(!confirm('Liberar /querojogar para avulsos?')) return;
+    action(()=>api('/api/acao/abrir',{method:'POST'}),'Avulsos liberados!');
   });
-
   $('btnFecharAvulsos').addEventListener('click', () => {
-    if (!confirm('Fechar inscrições de avulsos? O /querojogar será bloqueado.')) return;
-    action(() => api('/api/acao/fechar-avulsos', { method: 'POST' }), 'Avulsos fechados!');
+    if(!confirm('Fechar inscrições?')) return;
+    action(()=>api('/api/acao/fechar-avulsos',{method:'POST'}),'Avulsos fechados!');
   });
-
   $('btnConvocar').addEventListener('click', () => {
-    if (!confirm('Enviar mensagem de convocação no grupo?')) return;
-    action(() => api('/api/acao/convocar', { method: 'POST' }), 'Convocação enviada!');
+    if(!confirm('Enviar convocação no grupo?')) return;
+    action(()=>api('/api/acao/convocar',{method:'POST'}),'Convocação enviada!');
   });
-
   $('btnFechar').addEventListener('click', () => {
-    if (!confirm('Fechar lista e enviar resumo final no grupo?')) return;
-    action(() => api('/api/acao/fechar', { method: 'POST' }), 'Rodada fechada e resumo enviado!');
+    if(!confirm('Fechar lista e enviar resumo final?')) return;
+    action(()=>api('/api/acao/fechar',{method:'POST'}),'Rodada fechada e resumo enviado!');
   });
 
-  // ── Outros botões ──────────────────────────────────────────────────────────
-
+  // ── Formulários ───────────────────────────────────────────────────────────
   $('btnAddMens').addEventListener('click', () => {
-    const tel  = $('inpTel').value.trim();
-    const nome = $('inpNome').value.trim();
-    if (!tel || !nome) { toast('Preencha telefone e nome.', 'err'); return; }
-    action(
-      () => api('/api/mensalista', { method: 'POST', body: { telefone: tel, nome } }),
-      `${nome} adicionado!`
-    ).then(() => { $('inpTel').value = ''; $('inpNome').value = ''; });
+    const tel=$.call(null,'inpTel').value.trim(), nome=$('inpNome').value.trim();
+    if(!tel||!nome){toast('Preencha telefone e nome.','err');return;}
+    action(()=>api('/api/mensalista',{method:'POST',body:{telefone:tel,nome}}),`${nome} adicionado!`)
+      .then(()=>{$('inpTel').value='';$('inpNome').value='';});
   });
-
   $('btnAddAvulso').addEventListener('click', () => {
-    const tel  = $('inpAvulsoTel').value.trim();
-    const nome = $('inpAvulsoNome').value.trim();
-    if (!nome) { toast('Preencha o nome do avulso.', 'err'); return; }
-    action(
-      () => api('/api/avulso', { method: 'POST', body: { telefone: tel || '0', nome } }),
-      `${nome} adicionado como avulso!`
-    ).then(() => { $('inpAvulsoTel').value = ''; $('inpAvulsoNome').value = ''; });
+    const tel=$('inpAvulsoTel').value.trim(), nome=$('inpAvulsoNome').value.trim();
+    if(!nome){toast('Preencha o nome.','err');return;}
+    action(()=>api('/api/avulso',{method:'POST',body:{telefone:tel||'0',nome}}),`${nome} adicionado como avulso!`)
+      .then(()=>{$('inpAvulsoTel').value='';$('inpAvulsoNome').value='';});
   });
-
   $('btnSalvarVagas').addEventListener('click', () => {
-    const v = Number($('inpVagas').value);
-    if (!v || v < 1) { toast('Número de vagas inválido.', 'err'); return; }
-    action(() => api('/api/vagas', { method: 'POST', body: { totalVagas: v } }),
-           `Limite atualizado para ${v} vagas.`);
+    const v=Number($('inpVagas').value);
+    if(!v||v<1){toast('Número inválido.','err');return;}
+    action(()=>api('/api/vagas',{method:'POST',body:{totalVagas:v}}),`Limite atualizado para ${v} vagas.`);
   });
 
+  // ── Mensagem com destino ──────────────────────────────────────────────────
+  $('msgDestino').addEventListener('change', () => {
+    $('labelMencionar').style.display = $('msgDestino').value === 'grupo' ? 'flex' : 'none';
+  });
   $('btnSendMsg').addEventListener('click', () => {
-    const msg = $('mensagem').value.trim();
-    if (!msg) { toast('Escreva uma mensagem.', 'err'); return; }
-    action(
-      () => api('/api/acao/mensagem', { method: 'POST', body: { mensagem: msg } }),
-      'Mensagem enviada no grupo!'
-    ).then(() => { $('mensagem').value = ''; });
+    const msg=$('mensagem').value.trim(), destino=$('msgDestino').value, mencionar=$('chkMencionarTodos').checked;
+    if(!msg){toast('Escreva uma mensagem.','err');return;}
+    const label = destino === 'admins' ? 'Mensagem enviada para os admins!' : mencionar ? 'Mensagem com @todos enviada!' : 'Mensagem enviada no grupo!';
+    action(()=>api('/api/acao/mensagem',{method:'POST',body:{mensagem:msg,destino,mencionar_todos:mencionar}}),label)
+      .then(()=>{$('mensagem').value='';$('chkMencionarTodos').checked=false;});
   });
 
-  // ── Comandos personalizados ─────────────────────────────────────────────────
+  // ── Admins ────────────────────────────────────────────────────────────────
+  async function loadAdmins() {
+    try {
+      const admins = await api('/api/admins');
+      $('tbodyAdmins').innerHTML = admins.length
+        ? admins.map((a,i)=>`<tr>
+            <td style="color:var(--muted)">${i+1}</td>
+            <td style="font-family:var(--mono);font-size:12px">${a.telefone}</td>
+            <td>${a.nome||'<span style="color:var(--muted)">–</span>'}</td>
+            <td style="color:var(--muted);font-size:12px">${a.criadoEm?new Date(a.criadoEm).toLocaleDateString('pt-BR'):'–'}</td>
+            <td><button class="btn-ghost btn-sm" onclick="removeAdmin('${a.telefone}','${a.nome||a.telefone}')">🗑</button></td>
+          </tr>`).join('')
+        : '<tr><td colspan="5" class="empty">Nenhum admin cadastrado aqui. Os do .env continuam valendo.</td></tr>';
+    } catch(e){}
+  }
+  $('btnAddAdmin').addEventListener('click', () => {
+    const tel=$('inpAdminTel').value.trim(), nome=$('inpAdminNome').value.trim();
+    if(!tel){toast('Informe o telefone.','err');return;}
+    action(()=>api('/api/admin',{method:'POST',body:{telefone:tel,nome}}),`${nome||tel} adicionado como admin!`)
+      .then(()=>{$('inpAdminTel').value='';$('inpAdminNome').value='';loadAdmins();});
+  });
+  window.removeAdmin = (tel,nome) => {
+    if(!confirm(`Remover ${nome} dos admins?`)) return;
+    action(()=>api(`/api/admin/${tel}`,{method:'DELETE'}),`${nome} removido dos admins.`).then(loadAdmins);
+  };
 
-  const tipoLabel      = { mensagem: '💬 Mensagem', lista: '📋 Lista', resumo: '📊 Resumo', contador: '🔢 Contador' };
-  const permissaoLabel = { todos: '👥 Todos', admin: '🔐 Admin' };
-  const escopoLabel    = { grupo: '👥 Grupo', privado: '🔒 Privado', ambos: '🌐 Ambos' };
+  // ── Mensais ───────────────────────────────────────────────────────────────
+  const statusMensalLabel = { aguardando:'⏳ Aguardando', aprovado:'✅ Aprovado', inativo:'⛔ Inativo' };
+  const statusMensalCls   = { aguardando:'espera', aprovado:'sim', inativo:'nao' };
+
+  async function loadMensais() {
+    try {
+      const mensais = await api('/api/mensais');
+      $('tbodyMensais').innerHTML = mensais.length
+        ? mensais.map((m,i)=>`<tr>
+            <td style="color:var(--muted)">${i+1}</td>
+            <td>${m.nome}</td>
+            <td style="font-family:var(--mono);font-size:12px">${m.telefone}</td>
+            <td style="color:var(--muted);font-size:12px;max-width:120px">${m.obs||'–'}</td>
+            <td><span class="badge ${statusMensalCls[m.statusCadastro]||'pendente'}">${statusMensalLabel[m.statusCadastro]||m.statusCadastro}</span></td>
+            <td style="color:var(--muted);font-size:12px">${m.aprovadoEm?new Date(m.aprovadoEm).toLocaleDateString('pt-BR'):'–'}</td>
+            <td style="white-space:nowrap">
+              ${m.statusCadastro==='aguardando'?`<button class="btn-green btn-sm" onclick="aprovarMensal('${m.id}','${m.nome}')">✅ Aprovar</button>`:''}
+              ${m.statusCadastro==='aprovado'?`<button class="btn-amber btn-sm" onclick="revogarMensal('${m.id}','${m.nome}')">↩ Revogar</button>`:''}
+              <button class="btn-ghost btn-sm" onclick="editMensal('${m.id}','${m.nome}','${m.obs||''}')">✏️</button>
+              <button class="btn-ghost btn-sm" onclick="deleteMensal('${m.id}','${m.nome}')">🗑</button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="7" class="empty">Nenhum jogador no cadastro de mensais.</td></tr>';
+    } catch(e){}
+  }
+
+  $('btnAddMensal').addEventListener('click', () => {
+    const tel=$('inpMensalTel').value.trim(), nome=$('inpMensalNome').value.trim(), obs=$('inpMensalObs').value.trim();
+    if(!tel||!nome){toast('Telefone e nome são obrigatórios.','err');return;}
+    action(()=>api('/api/mensal',{method:'POST',body:{telefone:tel,nome,obs}}),`${nome} cadastrado!`)
+      .then(()=>{$('inpMensalTel').value='';$('inpMensalNome').value='';$('inpMensalObs').value='';loadMensais();});
+  });
+
+  window.aprovarMensal = (id,nome) => {
+    if(!confirm(`Confirmar pagamento de ${nome}? Ele entrará na lista de mensalistas como pendente e receberá notificação.`)) return;
+    action(()=>api(`/api/mensal/${id}/aprovar`,{method:'POST'}),`${nome} aprovado! Notificação enviada.`).then(()=>{loadMensais();load();});
+  };
+  window.revogarMensal = (id,nome) => {
+    if(!confirm(`Revogar aprovação de ${nome}?`)) return;
+    action(()=>api(`/api/mensal/${id}/revogar`,{method:'POST'}),`Aprovação de ${nome} revogada.`).then(()=>{loadMensais();load();});
+  };
+  window.editMensal = (id,nomeAtual,obsAtual) => {
+    const nome=prompt('Nome:',nomeAtual); if(nome===null) return;
+    const obs=prompt('Obs (pagamento, etc):',obsAtual); if(obs===null) return;
+    action(()=>api(`/api/mensal/${id}`,{method:'PATCH',body:{nome,obs}}),`${nome} atualizado.`).then(loadMensais);
+  };
+  window.deleteMensal = (id,nome) => {
+    if(!confirm(`Remover ${nome} do cadastro?`)) return;
+    action(()=>api(`/api/mensal/${id}`,{method:'DELETE'}),`${nome} removido.`).then(loadMensais);
+  };
+
+  // ── Comandos personalizados ───────────────────────────────────────────────
+  const tipoLabel      = {mensagem:'💬 Mensagem',lista:'📋 Lista',resumo:'📊 Resumo',contador:'🔢 Contador'};
+  const permissaoLabel = {todos:'👥 Todos',admin:'🔐 Admin'};
+  const escopoLabel    = {grupo:'👥 Grupo',privado:'🔒 Privado',ambos:'🌐 Ambos'};
 
   $('cmdTipo').addEventListener('change', () => {
-    const t = $('cmdTipo').value;
-    $('camposMensagem').style.display = t === 'mensagem' ? 'grid' : 'none';
-    $('camposContador').style.display  = t === 'contador'  ? 'block' : 'none';
+    const t=$('cmdTipo').value;
+    $('camposMensagem').style.display = t==='mensagem'?'grid':'none';
+    $('camposContador').style.display  = t==='contador' ?'block':'none';
   });
 
   async function loadComandos() {
     try {
       const cmds = await api('/api/comandos');
       $('tbodyComandos').innerHTML = cmds.length
-        ? cmds.map(c => {
-            const info = c.tipo === 'contador'
-              ? `<span style="font-size:11px;color:var(--muted)">${c.contadorConfig?.template || '{valor}'}</span>`
-              : `${c.descricao ? `<span style="color:var(--muted)">${c.descricao}</span><br>` : ''}
-                 <span style="font-size:11px">${(c.resposta||'').slice(0,60)}${(c.resposta||'').length>60?'…':''}</span>`;
-
-            const placar = c.tipo === 'contador'
-              ? `<div style="display:flex;align-items:center;gap:6px">
-                   <span style="font-family:var(--mono);font-size:13px;color:var(--amber)">
-                     ${c.contadorValor||0}${c.contadorConfig?.ciclo > 0 ? ` / ${c.contadorJogos||1} jogo(s)` : ''}
-                   </span>
-                   <button class="btn-ghost btn-sm" onclick="resetarContador('${c.id}')" title="Zerar contador">↺</button>
+        ? cmds.map(c=>{
+            const infoTd = c.tipo==='contador'
+              ? `<span style="font-size:11px;color:var(--muted)">${c.contadorConfig?.template||'{valor}'}</span>
+                 <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
+                   <span style="font-family:var(--mono);font-size:13px;color:var(--amber)">${c.contadorValor||0}${c.contadorConfig?.ciclo>0?` / ${c.contadorJogos||1} jogo(s)`:''}</span>
+                   <button class="btn-ghost btn-sm" onclick="resetarContador('${c.id}')" title="Zerar">↺</button>
                  </div>`
-              : '—';
-
+              : `${c.descricao?`<span style="color:var(--muted);font-size:11px">${c.descricao}</span><br>`:''}
+                 <span style="font-size:11px">${(c.resposta||'').slice(0,55)}${(c.resposta||'').length>55?'…':''}</span>`;
             return `<tr>
               <td><code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:var(--mono)">${c.gatilho}</code></td>
-              <td>${tipoLabel[c.tipo] || c.tipo}</td>
-              <td><span class="pill ${c.permissao === 'admin' ? 'amber' : 'muted'}">${permissaoLabel[c.permissao||'todos']}</span></td>
-              <td><span class="pill muted">${escopoLabel[c.escopo||'grupo']}</span></td>
-              <td style="max-width:200px">${c.tipo === 'contador' ? placar : info}</td>
+              <td>${tipoLabel[c.tipo]||c.tipo}</td>
+              <td><span class="pill ${c.permissao==='admin'?'amber':'muted'}">${permissaoLabel[c.permissao||'todos']}</span></td>
+              <td><span class="pill muted">${escopoLabel[c.escopo||'ambos']}</span></td>
+              <td style="max-width:200px">${infoTd}</td>
+              <td><button class="btn-ghost btn-sm" onclick="toggleCmd('${c.id}',${!c.ativo})">${c.ativo?'🟢':'⚫'}</button></td>
               <td>
-                <button class="btn-ghost btn-sm" onclick="toggleCmd('${c.id}',${!c.ativo})" title="${c.ativo?'Desativar':'Ativar'}">
-                  ${c.ativo ? '🟢' : '⚫'}
-                </button>
-              </td>
-              <td>
-                ${c.tipo === 'mensagem'  ? `<button class="btn-ghost btn-sm" onclick="editCmd('${c.id}')" title="Editar resposta">✏️</button>` : ''}
-                ${c.tipo === 'contador'  ? `<button class="btn-ghost btn-sm" onclick="editTemplate('${c.id}')" title="Editar template">✏️</button>` : ''}
+                <button class="btn-ghost btn-sm" onclick="openEditCmd('${c.id}')" title="Editar">✏️</button>
                 <button class="btn-ghost btn-sm" onclick="deleteCmd('${c.id}')" title="Remover">🗑</button>
               </td>
             </tr>`;
           }).join('')
         : '<tr><td colspan="7" class="empty">Nenhum comando criado ainda.</td></tr>';
-    } catch (e) { /* silencia se não autenticado ainda */ }
+    } catch(e){}
   }
 
-  window.toggleCmd = (id, ativo) =>
-    action(() => api(`/api/comandos/${id}`, { method: 'PATCH', body: { ativo } }),
-           ativo ? 'Comando ativado.' : 'Comando desativado.').then(loadComandos);
+  window.toggleCmd = (id,ativo) =>
+    action(()=>api(`/api/comandos/${id}`,{method:'PATCH',body:{ativo}}),ativo?'Ativado.':'Desativado.').then(loadComandos);
 
   window.deleteCmd = id => {
-    if (!confirm('Remover este comando?')) return;
-    action(() => api(`/api/comandos/${id}`, { method: 'DELETE' }), 'Comando removido.').then(loadComandos);
-  };
-
-  window.editCmd = async id => {
-    const cmds = await api('/api/comandos');
-    const cmd = cmds.find(c => c.id === id);
-    if (!cmd) return;
-    const nova = prompt(`Nova resposta para ${cmd.gatilho}:`, cmd.resposta || '');
-    if (nova === null) return;
-    action(() => api(`/api/comandos/${id}`, { method: 'PATCH', body: { resposta: nova } }),
-           'Comando atualizado.').then(loadComandos);
-  };
-
-  window.editTemplate = async id => {
-    const cmds = await api('/api/comandos');
-    const cmd = cmds.find(c => c.id === id);
-    if (!cmd) return;
-    const novoTemplate = prompt(
-      `Template para ${cmd.gatilho}\nVariáveis: {valor} = contador atual  |  {jogos} = número de jogos`,
-      cmd.contadorConfig?.template || '{valor}'
-    );
-    if (novoTemplate === null) return;
-    action(
-      () => api(`/api/comandos/${id}`, {
-        method: 'PATCH',
-        body: { contadorConfig: { ...cmd.contadorConfig, template: novoTemplate } }
-      }),
-      'Template atualizado!'
-    ).then(loadComandos);
+    if(!confirm('Remover este comando?')) return;
+    action(()=>api(`/api/comandos/${id}`,{method:'DELETE'}),'Comando removido.').then(loadComandos);
   };
 
   window.resetarContador = id => {
-    if (!confirm('Zerar o contador?')) return;
-    action(() => api(`/api/comandos/${id}/resetar`, { method: 'POST' }), 'Contador zerado!').then(loadComandos);
+    if(!confirm('Zerar o contador?')) return;
+    action(()=>api(`/api/comandos/${id}/resetar`,{method:'POST'}),'Contador zerado!').then(loadComandos);
   };
 
+  // Modal de edição
+  let _editCmdId = null;
+  window.openEditCmd = async id => {
+    const cmds = await api('/api/comandos');
+    const c = cmds.find(x=>x.id===id); if(!c) return;
+    _editCmdId = id;
+    $('modalCmdGatilho').textContent = c.gatilho;
+    $('modalCmdResposta').value = c.tipo==='contador' ? (c.contadorConfig?.template||'{valor}') : (c.resposta||'');
+    $('modalCmdPermissao').value = c.permissao||'todos';
+    $('modalCmdEscopo').value    = c.escopo||'ambos';
+    $('modalCmd').style.display  = 'flex';
+  };
+  $('modalCmdCancelar').addEventListener('click', ()=>{ $('modalCmd').style.display='none'; _editCmdId=null; });
+  $('modalCmdSalvar').addEventListener('click', async ()=>{
+    if(!_editCmdId) return;
+    const cmds = await api('/api/comandos');
+    const c = cmds.find(x=>x.id===_editCmdId); if(!c) return;
+    const resposta   = $('modalCmdResposta').value;
+    const permissao  = $('modalCmdPermissao').value;
+    const escopo     = $('modalCmdEscopo').value;
+    const body = c.tipo==='contador'
+      ? { permissao, escopo, contadorConfig:{...c.contadorConfig,template:resposta} }
+      : { permissao, escopo, resposta };
+    action(()=>api(`/api/comandos/${_editCmdId}`,{method:'PATCH',body}),'Comando atualizado.').then(()=>{
+      $('modalCmd').style.display='none'; _editCmdId=null; loadComandos();
+    });
+  });
+  $('modalCmd').addEventListener('click', e=>{ if(e.target===$('modalCmd')){$('modalCmd').style.display='none';_editCmdId=null;} });
+
   function cmdFormData() {
-    return {
-      gatilho:    $('cmdGatilho').value.trim(),
-      descricao:  $('cmdDescricao').value.trim(),
-      tipo:       $('cmdTipo').value,
-      permissao:  $('cmdPermissao').value,
-      escopo:     $('cmdEscopo').value
-    };
+    return { gatilho:$('cmdGatilho').value.trim(), descricao:$('cmdDescricao').value.trim(),
+             tipo:$('cmdTipo').value, permissao:$('cmdPermissao').value, escopo:$('cmdEscopo').value };
   }
-
   function clearCmdForm() {
-    ['cmdGatilho','cmdDescricao','cmdResposta','cntTemplate'].forEach(id => { $(id).value = ''; });
-    $('cntIncremento').value = '1';
-    $('cntCiclo').value = '0';
-    $('cmdTipo').value = 'mensagem';
-    $('cmdPermissao').value = 'todos';
-    $('cmdEscopo').value = 'ambos';
-    $('camposMensagem').style.display = 'grid';
-    $('camposContador').style.display  = 'none';
+    ['cmdGatilho','cmdDescricao','cmdResposta','cntTemplate'].forEach(id=>{$(id).value='';});
+    $('cntIncremento').value='1'; $('cntCiclo').value='0';
+    $('cmdTipo').value='mensagem'; $('cmdPermissao').value='todos'; $('cmdEscopo').value='ambos';
+    $('camposMensagem').style.display='grid'; $('camposContador').style.display='none';
   }
 
-  $('btnAddCmd').addEventListener('click', () => {
-    const d = cmdFormData();
-    const resposta = $('cmdResposta').value.trim();
-    if (!d.gatilho) { toast('Digite o gatilho.', 'err'); return; }
-    if (!resposta)  { toast('Digite a resposta.', 'err'); return; }
-    action(
-      () => api('/api/comandos', { method: 'POST', body: { ...d, resposta } }),
-      `Comando ${d.gatilho} criado!`
-    ).then(() => { clearCmdForm(); loadComandos(); });
+  $('btnAddCmd').addEventListener('click', ()=>{
+    const d=cmdFormData(), resposta=$('cmdResposta').value.trim();
+    if(!d.gatilho){toast('Digite o gatilho.','err');return;}
+    if(!resposta){toast('Digite a resposta.','err');return;}
+    action(()=>api('/api/comandos',{method:'POST',body:{...d,resposta}}),`Comando ${d.gatilho} criado!`)
+      .then(()=>{clearCmdForm();loadComandos();});
   });
 
-  $('btnAddCmdContador').addEventListener('click', () => {
-    const d = cmdFormData();
-    const template   = $('cntTemplate').value.trim();
-    const incremento = Number($('cntIncremento').value) || 1;
-    const ciclo      = Number($('cntCiclo').value) || 0;
-    if (!d.gatilho) { toast('Digite o gatilho.', 'err'); return; }
-    action(
-      () => api('/api/comandos', {
-        method: 'POST',
-        body: { ...d, tipo: 'contador', contadorConfig: { template, incrementoPor: incremento, ciclo } }
-      }),
-      `Contador ${d.gatilho} criado!`
-    ).then(() => { clearCmdForm(); loadComandos(); });
+  $('btnAddCmdContador').addEventListener('click', ()=>{
+    const d=cmdFormData();
+    const template=$('cntTemplate').value.trim();
+    const incremento=Number($('cntIncremento').value)||1;
+    const ciclo=Number($('cntCiclo').value)||0;
+    if(!d.gatilho){toast('Digite o gatilho.','err');return;}
+    action(()=>api('/api/comandos',{method:'POST',body:{...d,tipo:'contador',contadorConfig:{template,incrementoPor:incremento,ciclo}}}),`Contador ${d.gatilho} criado!`)
+      .then(()=>{clearCmdForm();loadComandos();});
   });
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-
+  // ── Init ──────────────────────────────────────────────────────────────────
   load();
   loadComandos();
+  loadAdmins();
+  loadMensais();
   setInterval(load, 10000);
   setInterval(loadComandos, 15000);
+  setInterval(loadAdmins, 30000);
+  setInterval(loadMensais, 20000);
 </script>
 </body>
 <footer>0.03</footer>

@@ -24,14 +24,15 @@ class Database {
           configuracoes: { totalVagas: 25, valorAvulso: 30 },
           mensalistas: [],
           avulsos: [],
-          comandos: []   // comandos personalizados criados pelo admin
+          comandos: [],   // comandos personalizados criados pelo admin
+          admins: [],     // admins dinâmicos além dos do .env
+          mensais: []     // cadastro de jogadores mensais (pendente pagamento → aprovado → mensalista)
         };
 
-    // Garante que versões antigas do estado.json tenham o campo
-    if (!this.state.comandos) {
-      this.state.comandos = [];
-      this.save();
-    }
+    // Migração de versões antigas
+    if (!this.state.comandos) { this.state.comandos = []; this.save(); }
+    if (!this.state.admins)   { this.state.admins = [];   this.save(); }
+    if (!this.state.mensais)  { this.state.mensais = [];  this.save(); }
   }
 
   save() {
@@ -222,7 +223,7 @@ class Database {
     return this.state.comandos || [];
   }
 
-  addComando({ gatilho, descricao, tipo, resposta, contadorConfig, permissao, escopo }) {
+  addComando({ gatilho, descricao, tipo, resposta, contadorConfig }) {
     const gatilhoNorm = gatilho.startsWith('/') ? gatilho.toLowerCase() : `/${gatilho.toLowerCase()}`;
 
     const existe = this.state.comandos.find(c => c.gatilho === gatilhoNorm);
@@ -234,18 +235,16 @@ class Database {
       descricao: descricao || '',
       tipo: tipo || 'mensagem',   // 'mensagem' | 'lista' | 'resumo' | 'contador'
       resposta: resposta || '',
-      ativo: true,
-      permissao: permissao || 'todos',   // 'todos' | 'admin'
-      escopo: escopo || 'grupo'          // 'grupo' | 'privado' | 'ambos'
+      ativo: true
     };
 
     if (tipo === 'contador') {
       const templateDigitado = (contadorConfig?.template || '').trim();
       novo.contadorConfig = {
-        // template livre — variáveis: {valor} e {jogos}
-        template: templateDigitado || '{valor}',
+        template: templateDigitado || '{nome} pediu {faltas} faltas em apenas {jogos} jogos',
+        nome: contadorConfig?.nome || '',
         incrementoPor: Number(contadorConfig?.incrementoPor) || 1,
-        ciclo: Number(contadorConfig?.ciclo) || 0,  // 0 = sem ciclo de jogos
+        ciclo: Number(contadorConfig?.ciclo) || 12,
       };
       novo.contadorValor = 0;
       novo.contadorJogos = 1;
@@ -258,31 +257,32 @@ class Database {
 
   /**
    * Incrementa o contador de um comando do tipo 'contador'.
-   * Template livre com variáveis {valor} e {jogos}.
+   * Retorna { cmd, faltas, jogos, mensagem } após o incremento.
    */
   incrementarContador(id) {
     const cmd = this.state.comandos.find(c => c.id === id);
     if (!cmd || cmd.tipo !== 'contador') return null;
 
-    const cfg   = cmd.contadorConfig || {};
-    const incr  = Number(cfg.incrementoPor) || 1;
-    const ciclo = Number(cfg.ciclo) || 0;
+    const cfg = cmd.contadorConfig || {};
+    const incremento = Number(cfg.incrementoPor) || 1;
+    const ciclo      = Number(cfg.ciclo) || 12;
 
-    cmd.contadorValor = (Number(cmd.contadorValor) || 0) + incr;
+    cmd.contadorValor = (Number(cmd.contadorValor) || 0) + incremento;
+    cmd.contadorJogos = Math.floor((cmd.contadorValor - 1) / ciclo) + 1;
 
-    if (ciclo > 0) {
-      cmd.contadorJogos = Math.floor((cmd.contadorValor - 1) / ciclo) + 1;
-    } else {
-      cmd.contadorJogos = (Number(cmd.contadorJogos) || 0) + 1;
-    }
+    const template = cfg.template || '{nome} pediu {faltas} falta(s) em apenas {jogos} jogo(s)';
+    const nome     = cfg.nome || '';
 
-    const template = cfg.template || '{valor}';
     const mensagem = template
-      .replace(/\{valor\}/g, String(cmd.contadorValor))
-      .replace(/\{jogos\}/g, String(cmd.contadorJogos));
+      .replace(/\{nome\}/g,   nome)
+      .replace(/\{faltas\}/g, String(cmd.contadorValor))
+      .replace(/\{jogos\}/g,  String(cmd.contadorJogos));
 
     this.save();
-    return { cmd, valor: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem };
+
+    console.log('[CONTADOR]', { id, template, nome, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem });
+
+    return { cmd, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem };
   }
 
   /**
@@ -315,6 +315,120 @@ class Database {
   findComando(gatilho) {
     const g = gatilho.toLowerCase();
     return this.state.comandos.find(c => c.ativo && c.gatilho === g) || null;
+  }
+
+  // ─── Admins dinâmicos ─────────────────────────────────────────────────────
+
+  getAdmins() {
+    return this.state.admins || [];
+  }
+
+  addAdmin(telefone, nome) {
+    if (!this.state.admins) this.state.admins = [];
+    const tel = onlyDigits(telefone);
+    if (!tel) throw new Error('Telefone inválido.');
+    const existe = this.state.admins.find(a => a.telefone === tel);
+    if (existe) throw new Error(`${tel} já é administrador.`);
+    const admin = { telefone: tel, nome: (nome || '').trim(), criadoEm: new Date().toISOString() };
+    this.state.admins.push(admin);
+    this.save();
+    return admin;
+  }
+
+  removeAdmin(telefone) {
+    const tel = onlyDigits(telefone);
+    const antes = (this.state.admins || []).length;
+    this.state.admins = (this.state.admins || []).filter(a => a.telefone !== tel);
+    this.save();
+    return this.state.admins.length < antes;
+  }
+
+  // ─── Mensais (cadastro/pagamento) ─────────────────────────────────────────
+  /**
+   * Cadastro separado dos mensalistas da rodada.
+   * statusCadastro: 'aguardando' | 'aprovado' | 'inativo'
+   * Ao aprovar, o jogador é inserido em mensalistas[] como 'pendente'.
+   */
+
+  getMensais() {
+    return this.state.mensais || [];
+  }
+
+  addMensal(telefone, nome, obs) {
+    if (!this.state.mensais) this.state.mensais = [];
+    const tel = onlyDigits(telefone);
+    if (!tel || !nome) throw new Error('Telefone e nome são obrigatórios.');
+    const existe = this.state.mensais.find(m => m.telefone === tel);
+    if (existe) throw new Error(`Jogador ${nome} já está no cadastro de mensais.`);
+    const mensal = {
+      id: Date.now().toString(),
+      telefone: tel,
+      nome: nome.trim(),
+      obs: (obs || '').trim(),
+      statusCadastro: 'aguardando', // aguardando | aprovado | inativo
+      criadoEm: new Date().toISOString(),
+      aprovadoEm: null
+    };
+    this.state.mensais.push(mensal);
+    this.save();
+    return mensal;
+  }
+
+  updateMensal(id, campos) {
+    const m = (this.state.mensais || []).find(m => m.id === id);
+    if (!m) return null;
+    Object.assign(m, campos);
+    this.save();
+    return m;
+  }
+
+  removeMensal(id) {
+    const antes = (this.state.mensais || []).length;
+    this.state.mensais = (this.state.mensais || []).filter(m => m.id !== id);
+    this.save();
+    return (this.state.mensais || []).length < antes;
+  }
+
+  /**
+   * Aprova o pagamento: marca statusCadastro='aprovado' e,
+   * se ainda não for mensalista, adiciona em mensalistas[] como pendente.
+   * Retorna { mensal, jaEraMensalista }
+   */
+  aprovarMensal(id) {
+    const m = (this.state.mensais || []).find(m => m.id === id);
+    if (!m) throw new Error('Cadastro não encontrado.');
+
+    m.statusCadastro = 'aprovado';
+    m.aprovadoEm = new Date().toISOString();
+
+    const jaExiste = this.state.mensalistas.find(ms => ms.telefone === m.telefone);
+    if (!jaExiste) {
+      this.state.mensalistas.push({ telefone: m.telefone, nome: m.nome, status: 'pendente' });
+    } else {
+      // Garante que o nome está atualizado
+      jaExiste.nome = m.nome;
+    }
+
+    this.save();
+    return { mensal: m, jaEraMensalista: Boolean(jaExiste) };
+  }
+
+  /**
+   * Remove aprovação: marca statusCadastro='inativo' e
+   * opcionalmente remove de mensalistas[] se ainda estiver pendente.
+   */
+  revogarMensal(id) {
+    const m = (this.state.mensais || []).find(m => m.id === id);
+    if (!m) throw new Error('Cadastro não encontrado.');
+
+    m.statusCadastro = 'inativo';
+    // Remove de mensalistas somente se ainda pendente (não jogou nenhuma rodada)
+    this.state.mensalistas = this.state.mensalistas.filter(
+      ms => !(ms.telefone === m.telefone && ms.status === 'pendente')
+    );
+
+    this.save();
+    return m;
   }
 
   /**

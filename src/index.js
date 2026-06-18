@@ -310,13 +310,29 @@ app.post('/api/acao/resumo', authMiddleware, async (req, res) => {
   res.json({ ok: true, resumo: db.resumo() });
 });
 
-// Mensagem livre no grupo (corrige 404 do dashboard)
+// Mensagem livre — destino: 'grupo' | 'admins'
 app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
-  const mensagem = String(req.body.mensagem || '').trim();
-  const mencionar = Boolean(req.body.mencionar_todos);
-  if (!mensagem || mensagem.length < 2) {
+  const mensagem    = String(req.body.mensagem || '').trim();
+  const mencionar   = Boolean(req.body.mencionar_todos);
+  const destino     = req.body.destino || 'grupo'; // 'grupo' | 'admins'
+
+  if (!mensagem || mensagem.length < 2)
     return res.status(400).json({ error: 'Mensagem obrigatória.' });
+
+  if (destino === 'admins') {
+    // Envia no privado de cada admin (env + banco)
+    const nums = [
+      ...String(process.env.ADMIN_NUMBERS || '').split(',').map(n => n.replace(/\D/g,'')).filter(Boolean),
+      ...(db.getAdmins() || []).map(a => a.telefone)
+    ];
+    const unicos = [...new Set(nums)];
+    for (const tel of unicos) {
+      await whatsapp.sendPrivateMessage(tel, mensagem).catch(e => console.error(e));
+    }
+    return res.json({ ok: true, enviados: unicos.length });
   }
+
+  // destino === 'grupo'
   await whatsapp.sendGroupMessage(mensagem, mencionar).catch(e => console.error(e));
   res.json({ ok: true });
 });
@@ -325,8 +341,6 @@ app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
 app.post('/api/avulso/:telefone/desistir', authMiddleware, async (req, res) => {
   const { removido, jogador, promovido } = db.desistirAvulso(req.params.telefone);
   if (!removido) return res.status(404).json({ error: 'Avulso não encontrado.' });
-
-  // Notifica o promovido via WhatsApp privado
   if (promovido) {
     const valor = db.getState().configuracoes.valorAvulso;
     await whatsapp.sendPrivateMessage(
@@ -334,8 +348,82 @@ app.post('/api/avulso/:telefone/desistir', authMiddleware, async (req, res) => {
       `⚽ Boa notícia, ${promovido.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
     ).catch(e => db.log('Erro ao notificar promovido', { error: e.message }));
   }
-
   res.json({ ok: true, jogador, promovido });
+});
+
+// ─── Admins ────────────────────────────────────────────────────────────────────
+
+app.get('/api/admins', authMiddleware, (req, res) => res.json(db.getAdmins()));
+
+app.post('/api/admin', authMiddleware, async (req, res) => {
+  try {
+    const admin = db.addAdmin(req.body.telefone, req.body.nome || '');
+    await whatsapp.sendPrivateMessage(
+      admin.telefone,
+      `🔐 Olá${admin.nome ? `, ${admin.nome}` : ''}! Você agora é administrador do Futebol Bot.\n\nUse /admin no privado do bot para ver os comandos disponíveis.`
+    ).catch(e => db.log('Erro notif admin', { error: e.message }));
+    res.status(201).json({ ok: true, admin });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/:telefone', authMiddleware, async (req, res) => {
+  const removed = db.removeAdmin(req.params.telefone);
+  if (!removed) return res.status(404).json({ error: 'Admin não encontrado.' });
+  await whatsapp.sendPrivateMessage(
+    req.params.telefone.replace(/\D/g,''),
+    '🔒 Você foi removido da lista de administradores do Futebol Bot.'
+  ).catch(() => {});
+  res.json({ ok: true });
+});
+
+// ─── Mensais ───────────────────────────────────────────────────────────────────
+
+app.get('/api/mensais', authMiddleware, (req, res) => {
+  res.json(db.getMensais());
+});
+
+app.post('/api/mensal', authMiddleware, (req, res) => {
+  try {
+    const { telefone, nome, obs } = req.body;
+    const mensal = db.addMensal(telefone, nome, obs);
+    res.status(201).json({ ok: true, mensal });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch('/api/mensal/:id', authMiddleware, (req, res) => {
+  const m = db.updateMensal(req.params.id, req.body);
+  if (!m) return res.status(404).json({ error: 'Cadastro não encontrado.' });
+  res.json({ ok: true, mensal: m });
+});
+
+app.delete('/api/mensal/:id', authMiddleware, (req, res) => {
+  const removed = db.removeMensal(req.params.id);
+  res.json({ ok: true, removed });
+});
+
+// Aprovar pagamento → entra como mensalista pendente
+app.post('/api/mensal/:id/aprovar', authMiddleware, async (req, res) => {
+  try {
+    const { mensal, jaEraMensalista } = db.aprovarMensal(req.params.id);
+    // Notifica o jogador
+    await whatsapp.sendPrivateMessage(
+      mensal.telefone,
+      `✅ Olá, ${mensal.nome}! Seu pagamento foi confirmado e você está na lista de mensalistas desta semana.\n\nConfirme sua presença quando a enquete for aberta! ⚽`
+    ).catch(e => db.log('Erro notif aprovação', { error: e.message }));
+    res.json({ ok: true, mensal, jaEraMensalista });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Revogar aprovação → remove de mensalistas se ainda pendente
+app.post('/api/mensal/:id/revogar', authMiddleware, async (req, res) => {
+  try {
+    const mensal = db.revogarMensal(req.params.id);
+    await whatsapp.sendPrivateMessage(
+      mensal.telefone,
+      `⚠️ ${mensal.nome}, sua aprovação como mensalista foi removida. Entre em contato com o organizador.`
+    ).catch(e => db.log('Erro notif revogação', { error: e.message }));
+    res.json({ ok: true, mensal });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 // ─── Comandos personalizados ───────────────────────────────────────────────────
@@ -345,14 +433,11 @@ app.get('/api/comandos', authMiddleware, (req, res) => {
 
 app.post('/api/comandos', authMiddleware, (req, res) => {
   try {
-    const { gatilho, descricao, tipo, resposta } = req.body;
+    const { gatilho, descricao, tipo, resposta, contadorConfig, permissao, escopo } = req.body;
     if (!gatilho) return res.status(400).json({ error: 'Gatilho obrigatório.' });
-    if (tipo === 'mensagem' && !resposta) return res.status(400).json({ error: 'Resposta obrigatória para tipo mensagem.' });
-    const cmd = db.addComando({ gatilho, descricao, tipo, resposta });
+    const cmd = db.addComando({ gatilho, descricao, tipo, resposta, contadorConfig, permissao, escopo });
     res.status(201).json(cmd);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 app.patch('/api/comandos/:id', authMiddleware, (req, res) => {
