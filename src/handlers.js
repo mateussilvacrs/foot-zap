@@ -51,6 +51,7 @@ function formatLista(db) {
     numberedList(r.avulsos),
     '',
     `Vagas restantes: ${r.vagasRestantes}`,
+    '',
 
         `Ordem da Lista de espera (${r.espera.length}):`,
     numberedList(r.espera),
