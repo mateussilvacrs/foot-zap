@@ -273,6 +273,10 @@ async function handleCommand(context, services) {
   if (cmdCustom) {
     if (cmdCustom.tipo === 'lista')  return formatLista(db);
     if (cmdCustom.tipo === 'resumo') return formatResumo(db);
+    if (cmdCustom.tipo === 'contador') {
+      const resultado = db.incrementarContador(cmdCustom.id);
+      return resultado ? resultado.mensagem : '(erro no contador)';
+    }
     // tipo 'mensagem': retorna o texto configurado
     return cmdCustom.resposta || '(sem resposta configurada)';
   }

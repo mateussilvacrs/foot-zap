@@ -222,7 +222,7 @@ class Database {
     return this.state.comandos || [];
   }
 
-  addComando({ gatilho, descricao, tipo, resposta }) {
+  addComando({ gatilho, descricao, tipo, resposta, contadorConfig }) {
     const gatilhoNorm = gatilho.startsWith('/') ? gatilho.toLowerCase() : `/${gatilho.toLowerCase()}`;
 
     const existe = this.state.comandos.find(c => c.gatilho === gatilhoNorm);
@@ -232,14 +232,59 @@ class Database {
       id: Date.now().toString(),
       gatilho: gatilhoNorm,
       descricao: descricao || '',
-      tipo: tipo || 'mensagem',   // 'mensagem' | 'lista' | 'resumo'
+      tipo: tipo || 'mensagem',   // 'mensagem' | 'lista' | 'resumo' | 'contador'
       resposta: resposta || '',
       ativo: true
     };
 
+    // Para tipo contador: template com {faltas} e {jogos}, e incremento por uso
+    if (tipo === 'contador') {
+      novo.contadorConfig = {
+        template: contadorConfig?.template || '{nome} tem {faltas} falta(s) em {jogos} jogo(s)',
+        nome: contadorConfig?.nome || '',         // nome exibido na mensagem
+        incrementoPor: Number(contadorConfig?.incrementoPor) || 1,   // quanto soma por uso
+        ciclo: Number(contadorConfig?.ciclo) || 12,                  // a cada X incrementos, +1 jogo
+      };
+      novo.contadorValor = 0;   // faltas acumuladas
+      novo.contadorJogos = 1;   // jogos
+    }
+
     this.state.comandos.push(novo);
     this.save();
     return novo;
+  }
+
+  /**
+   * Incrementa o contador de um comando do tipo 'contador'.
+   * Retorna { cmd, faltas, jogos, mensagem } após o incremento.
+   */
+  incrementarContador(id) {
+    const cmd = this.state.comandos.find(c => c.id === id);
+    if (!cmd || cmd.tipo !== 'contador') return null;
+
+    cmd.contadorValor = (cmd.contadorValor || 0) + (cmd.contadorConfig.incrementoPor || 1);
+    // A cada `ciclo` incrementos, sobe 1 jogo
+    cmd.contadorJogos = Math.floor(cmd.contadorValor / cmd.contadorConfig.ciclo) + 1;
+
+    const mensagem = cmd.contadorConfig.template
+      .replace(/{nome}/g,   cmd.contadorConfig.nome || '')
+      .replace(/{faltas}/g, cmd.contadorValor)
+      .replace(/{jogos}/g,  cmd.contadorJogos);
+
+    this.save();
+    return { cmd, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem };
+  }
+
+  /**
+   * Reseta o contador de um comando.
+   */
+  resetarContador(id) {
+    const cmd = this.state.comandos.find(c => c.id === id);
+    if (!cmd || cmd.tipo !== 'contador') return null;
+    cmd.contadorValor = 0;
+    cmd.contadorJogos = 1;
+    this.save();
+    return cmd;
   }
 
   updateComando(id, campos) {

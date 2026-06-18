@@ -360,6 +360,12 @@ app.patch('/api/comandos/:id', authMiddleware, (req, res) => {
   res.json(cmd);
 });
 
+app.post('/api/comandos/:id/resetar', authMiddleware, (req, res) => {
+  const cmd = db.resetarContador(req.params.id);
+  if (!cmd) return res.status(404).json({ error: 'Comando não encontrado ou não é contador.' });
+  res.json({ ok: true, cmd });
+});
+
 app.delete('/api/comandos/:id', authMiddleware, (req, res) => {
   const removed = db.removeComando(req.params.id);
   res.json({ ok: removed });
