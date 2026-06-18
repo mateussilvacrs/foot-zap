@@ -707,7 +707,8 @@
                 </button>
               </td>
               <td>
-                ${c.tipo === 'mensagem' ? `<button class="btn-ghost btn-sm" onclick="editCmd('${c.id}')" title="Editar">✏️</button>` : ''}
+                ${c.tipo === 'mensagem'  ? `<button class="btn-ghost btn-sm" onclick="editCmd('${c.id}')" title="Editar resposta">✏️</button>` : ''}
+                ${c.tipo === 'contador'  ? `<button class="btn-ghost btn-sm" onclick="editTemplate('${c.id}')" title="Editar template">✏️</button>` : ''}
                 <button class="btn-ghost btn-sm" onclick="deleteCmd('${c.id}')" title="Remover">🗑</button>
               </td>
             </tr>`;
@@ -735,6 +736,26 @@
            'Comando atualizado.').then(loadComandos);
   };
 
+  window.editTemplate = async id => {
+    const cmds = await api('/api/comandos');
+    const cmd = cmds.find(c => c.id === id);
+    if (!cmd) return;
+    const novoTemplate = prompt(
+      `Template para ${cmd.gatilho}\nVariáveis: {nome} {faltas} {jogos}`,
+      cmd.contadorConfig?.template || ''
+    );
+    if (novoTemplate === null) return;
+    const novoNome = prompt('Nome exibido:', cmd.contadorConfig?.nome || '');
+    if (novoNome === null) return;
+    action(
+      () => api(`/api/comandos/${id}`, {
+        method: 'PATCH',
+        body: { contadorConfig: { ...cmd.contadorConfig, template: novoTemplate, nome: novoNome } }
+      }),
+      'Template atualizado!'
+    ).then(loadComandos);
+  };
+
   window.resetarContador = id => {
     if (!confirm('Zerar o contador? Faltas e jogos voltam a 0/1.')) return;
     action(() => api(`/api/comandos/${id}/resetar`, { method: 'POST' }), 'Contador zerado!').then(loadComandos);
@@ -757,17 +778,17 @@
     });
   });
 
-  // Criar comando contador
   $('btnAddCmdContador').addEventListener('click', () => {
     const gatilho    = $('cmdGatilho').value.trim();
     const descricao  = $('cmdDescricao').value.trim();
     const nome       = $('cntNome').value.trim();
     const incremento = Number($('cntIncremento').value) || 1;
     const ciclo      = Number($('cntCiclo').value) || 12;
-    const template   = $('cntTemplate').value.trim() ||
-                       '{nome} pediu {faltas} falta(s) em apenas {jogos} jogo(s)';
+    const template   = $('cntTemplate').value.trim(); // vazio = backend usa o padrão
+
     if (!gatilho) { toast('Digite o gatilho.', 'err'); return; }
     if (!nome)    { toast('Digite o nome exibido.', 'err'); return; }
+
     action(
       () => api('/api/comandos', {
         method: 'POST',
@@ -780,6 +801,7 @@
     ).then(() => {
       $('cmdGatilho').value = ''; $('cmdDescricao').value = '';
       $('cntNome').value = ''; $('cntTemplate').value = '';
+      $('cntIncremento').value = '1'; $('cntCiclo').value = '12';
       loadComandos();
     });
   });

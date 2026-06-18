@@ -237,16 +237,16 @@ class Database {
       ativo: true
     };
 
-    // Para tipo contador: template com {faltas} e {jogos}, e incremento por uso
     if (tipo === 'contador') {
+      const templateDigitado = (contadorConfig?.template || '').trim();
       novo.contadorConfig = {
-        template: contadorConfig?.template || '{nome} tem {faltas} falta(s) em {jogos} jogo(s)',
-        nome: contadorConfig?.nome || '',         // nome exibido na mensagem
-        incrementoPor: Number(contadorConfig?.incrementoPor) || 1,   // quanto soma por uso
-        ciclo: Number(contadorConfig?.ciclo) || 12,                  // a cada X incrementos, +1 jogo
+        template: templateDigitado || '{nome} pediu {faltas} faltas em apenas {jogos} jogos',
+        nome: contadorConfig?.nome || '',
+        incrementoPor: Number(contadorConfig?.incrementoPor) || 1,
+        ciclo: Number(contadorConfig?.ciclo) || 12,
       };
-      novo.contadorValor = 0;   // faltas acumuladas
-      novo.contadorJogos = 1;   // jogos
+      novo.contadorValor = 0;
+      novo.contadorJogos = 1;
     }
 
     this.state.comandos.push(novo);
@@ -262,16 +262,25 @@ class Database {
     const cmd = this.state.comandos.find(c => c.id === id);
     if (!cmd || cmd.tipo !== 'contador') return null;
 
-    cmd.contadorValor = (cmd.contadorValor || 0) + (cmd.contadorConfig.incrementoPor || 1);
-    // A cada `ciclo` incrementos, sobe 1 jogo
-    cmd.contadorJogos = Math.floor(cmd.contadorValor / cmd.contadorConfig.ciclo) + 1;
+    const cfg = cmd.contadorConfig || {};
+    const incremento = Number(cfg.incrementoPor) || 1;
+    const ciclo      = Number(cfg.ciclo) || 12;
 
-    const mensagem = cmd.contadorConfig.template
-      .replace(/{nome}/g,   cmd.contadorConfig.nome || '')
-      .replace(/{faltas}/g, cmd.contadorValor)
-      .replace(/{jogos}/g,  cmd.contadorJogos);
+    cmd.contadorValor = (Number(cmd.contadorValor) || 0) + incremento;
+    cmd.contadorJogos = Math.floor((cmd.contadorValor - 1) / ciclo) + 1;
+
+    const template = cfg.template || '{nome} pediu {faltas} falta(s) em apenas {jogos} jogo(s)';
+    const nome     = cfg.nome || '';
+
+    const mensagem = template
+      .replace(/\{nome\}/g,   nome)
+      .replace(/\{faltas\}/g, String(cmd.contadorValor))
+      .replace(/\{jogos\}/g,  String(cmd.contadorJogos));
 
     this.save();
+
+    console.log('[CONTADOR]', { id, template, nome, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem });
+
     return { cmd, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem };
   }
 
