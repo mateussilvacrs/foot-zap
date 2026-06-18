@@ -306,15 +306,30 @@ app.post('/api/acao/convocar', authMiddleware, async (req, res) => {
 });
 
 // Alterar status de qualquer jogador manualmente pelo dashboard
-app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
+// Alterar status de qualquer jogador manualmente pelo dashboard
+app.patch('/api/player/:telefone/status', authMiddleware, async (req, res) => { // <-- Adicionado o async aqui
   const tel    = req.params.telefone;
   const status = req.body.status;
   const validos = ['sim', 'nao', 'pendente', 'confirmado', 'espera'];
   if (!validos.includes(status)) {
     return res.status(400).json({ error: 'Status inválido.' });
   }
-const { success } = db.updatePlayerStatus(tel, status);
+  
+  // Agora pegamos também os promovidos
+  const { success, promovidos } = db.updatePlayerStatus(tel, status);
   if (!success) return res.status(404).json({ error: 'Jogador não encontrado.' });
+
+  // Dispara a mensagem se houver promovidos pela alteração no dashboard
+  if (promovidos && promovidos.length > 0) {
+    const valor = db.getState().configuracoes.valorAvulso;
+    for (const p of promovidos) {
+      await whatsapp.sendPrivateMessage(
+        p.telefone,
+        `⚽ Boa notícia, ${p.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+      ).catch(e => console.error('[DASHBOARD] Erro ao notificar promovido', e));
+    }
+  }
+
   res.json({ ok: true });
 });
 
