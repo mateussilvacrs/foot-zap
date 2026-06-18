@@ -185,7 +185,13 @@ async function handleCommand(context, services) {
     return handleAdmin(text, context, services);
   }
 
-  if (lower === '/ajuda') return mensagemAjuda(isAdmin);
+  if (lower === '/ajuda') {
+    const base = mensagemAjuda(isAdmin);
+    const customAtivos = db.getComandos().filter(c => c.ativo);
+    if (!customAtivos.length) return base;
+    const extras = customAtivos.map(c => `${c.gatilho}  – ${c.descricao || c.tipo}`).join('\n');
+    return base + '\n\nComandos extras:\n' + extras;
+  }
   if (lower === '/lista') return formatLista(db);
 
   if (lower.startsWith('/confirmar') || lower.startsWith('/confirma')) {
@@ -260,6 +266,15 @@ async function handleCommand(context, services) {
     return result.jogador.status === 'confirmado'
       ? `✅ Você entrou na lista de avulsos. Valor: R$ ${valor} ⚽`
       : '⏳ Lista cheia — você entrou na fila de espera.';
+  }
+
+  // ── Comandos personalizados criados pelo admin ───────────────────────────
+  const cmdCustom = db.findComando(lower.split(/\s+/)[0]);
+  if (cmdCustom) {
+    if (cmdCustom.tipo === 'lista')  return formatLista(db);
+    if (cmdCustom.tipo === 'resumo') return formatResumo(db);
+    // tipo 'mensagem': retorna o texto configurado
+    return cmdCustom.resposta || '(sem resposta configurada)';
   }
 
   return 'Comando não reconhecido. Use /ajuda para ver as opções.';

@@ -23,8 +23,15 @@ class Database {
           pollId: null,
           configuracoes: { totalVagas: 25, valorAvulso: 30 },
           mensalistas: [],
-          avulsos: []
+          avulsos: [],
+          comandos: []   // comandos personalizados criados pelo admin
         };
+
+    // Garante que versões antigas do estado.json tenham o campo
+    if (!this.state.comandos) {
+      this.state.comandos = [];
+      this.save();
+    }
   }
 
   save() {
@@ -202,6 +209,56 @@ class Database {
 
     this.save();
     return { removido: true, jogador, promovido };
+  }
+
+  // ─── Comandos personalizados ───────────────────────────────────────────────
+
+  /**
+   * Cada comando: { id, gatilho, descricao, tipo, resposta, ativo }
+   * tipo: 'mensagem' | 'lista' | 'resumo'
+   */
+  getComandos() {
+    return this.state.comandos || [];
+  }
+
+  addComando({ gatilho, descricao, tipo, resposta }) {
+    const gatilhoNorm = gatilho.startsWith('/') ? gatilho.toLowerCase() : `/${gatilho.toLowerCase()}`;
+
+    const existe = this.state.comandos.find(c => c.gatilho === gatilhoNorm);
+    if (existe) throw new Error(`Comando ${gatilhoNorm} já existe.`);
+
+    const novo = {
+      id: Date.now().toString(),
+      gatilho: gatilhoNorm,
+      descricao: descricao || '',
+      tipo: tipo || 'mensagem',   // 'mensagem' | 'lista' | 'resumo'
+      resposta: resposta || '',
+      ativo: true
+    };
+
+    this.state.comandos.push(novo);
+    this.save();
+    return novo;
+  }
+
+  updateComando(id, campos) {
+    const cmd = this.state.comandos.find(c => c.id === id);
+    if (!cmd) return null;
+    Object.assign(cmd, campos);
+    this.save();
+    return cmd;
+  }
+
+  removeComando(id) {
+    const antes = this.state.comandos.length;
+    this.state.comandos = this.state.comandos.filter(c => c.id !== id);
+    this.save();
+    return this.state.comandos.length < antes;
+  }
+
+  findComando(gatilho) {
+    const g = gatilho.toLowerCase();
+    return this.state.comandos.find(c => c.ativo && c.gatilho === g) || null;
   }
 
   /**

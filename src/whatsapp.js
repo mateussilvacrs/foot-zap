@@ -34,10 +34,33 @@ async function sendText(number, text) {
 
 /**
  * Envia mensagem no grupo configurado em WHATSAPP_GROUP_ID.
+ * Se o texto contiver @todos ou @everyone, dispara mentionsEveryOne.
  */
 async function sendGroupMessage(text) {
-  const { groupId } = requiredConfig();
+  const { groupId, instance } = requiredConfig();
   if (!groupId) throw new Error('WHATSAPP_GROUP_ID não configurado.');
+
+  const mentionAll =
+    text.includes('@todos') ||
+    text.includes('@everyone') ||
+    text.includes('@all');
+
+  if (mentionAll) {
+    // Remove o @todos do texto e deixa o WhatsApp exibir a menção nativa
+    const textoLimpo = text
+      .replace(/@todos|@everyone|@all/gi, '')
+      .trim();
+
+    return postEvolution(`/message/sendText/${instance}`, {
+      number: groupId,
+      text: textoLimpo,
+      options: {
+        delay: 800,
+        mentionsEveryOne: true
+      }
+    });
+  }
+
   return sendText(groupId, text);
 }
 

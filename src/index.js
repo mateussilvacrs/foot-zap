@@ -337,6 +337,34 @@ app.post('/api/avulso/:telefone/desistir', authMiddleware, async (req, res) => {
   res.json({ ok: true, jogador, promovido });
 });
 
+// ─── Comandos personalizados ───────────────────────────────────────────────────
+app.get('/api/comandos', authMiddleware, (req, res) => {
+  res.json(db.getComandos());
+});
+
+app.post('/api/comandos', authMiddleware, (req, res) => {
+  try {
+    const { gatilho, descricao, tipo, resposta } = req.body;
+    if (!gatilho) return res.status(400).json({ error: 'Gatilho obrigatório.' });
+    if (tipo === 'mensagem' && !resposta) return res.status(400).json({ error: 'Resposta obrigatória para tipo mensagem.' });
+    const cmd = db.addComando({ gatilho, descricao, tipo, resposta });
+    res.status(201).json(cmd);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.patch('/api/comandos/:id', authMiddleware, (req, res) => {
+  const cmd = db.updateComando(req.params.id, req.body);
+  if (!cmd) return res.status(404).json({ error: 'Comando não encontrado.' });
+  res.json(cmd);
+});
+
+app.delete('/api/comandos/:id', authMiddleware, (req, res) => {
+  const removed = db.removeComando(req.params.id);
+  res.json({ ok: removed });
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const port = process.env.PORT || 3000;

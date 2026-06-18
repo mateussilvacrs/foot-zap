@@ -365,6 +365,36 @@
     </div>
   </div>
 
+  <!-- Comandos personalizados -->
+  <div class="panel">
+    <h2>Comandos Personalizados</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+      Crie atalhos que os jogadores podem usar no grupo.
+      Ex: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/pix</code> → bot responde com seus dados de pagamento.
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+      <input id="cmdGatilho"   placeholder="/pix  (o / é opcional)" />
+      <input id="cmdDescricao" placeholder="Descrição curta (aparece no /ajuda)" />
+      <select id="cmdTipo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px">
+        <option value="mensagem">💬 Mensagem fixa</option>
+        <option value="lista">📋 Envia a lista</option>
+        <option value="resumo">📊 Envia o resumo</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:16px">
+      <textarea id="cmdResposta" placeholder="Texto que o bot responde (somente para tipo Mensagem fixa)" style="min-height:64px"></textarea>
+      <button class="btn-green" id="btnAddCmd" style="align-self:end;height:36px">+ Criar</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Gatilho</th><th>Tipo</th><th>Descrição / Resposta</th><th>Ativo</th><th></th></tr>
+      </thead>
+      <tbody id="tbodyComandos"></tbody>
+    </table>
+  </div>
+
 </main>
 
 <div id="toast"></div>
@@ -609,11 +639,85 @@
     ).then(() => { $('mensagem').value = ''; });
   });
 
+  // ── Comandos personalizados ─────────────────────────────────────────────────
+
+  const tipoLabel = { mensagem: '💬 Mensagem', lista: '📋 Lista', resumo: '📊 Resumo' };
+
+  async function loadComandos() {
+    try {
+      const cmds = await api('/api/comandos');
+      $('tbodyComandos').innerHTML = cmds.length
+        ? cmds.map(c => `
+            <tr>
+              <td><code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:var(--mono)">${c.gatilho}</code></td>
+              <td>${tipoLabel[c.tipo] || c.tipo}</td>
+              <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(c.descricao || c.resposta || '').replace(/"/g,'&quot;')}">
+                ${c.descricao ? `<span style="color:var(--muted)">${c.descricao}</span>` : ''}
+                ${c.resposta  ? `<br><span style="font-size:11px;color:var(--ink)">${c.resposta.slice(0,80)}${c.resposta.length>80?'…':''}</span>` : ''}
+              </td>
+              <td>
+                <button class="btn-ghost btn-sm" onclick="toggleCmd('${c.id}',${!c.ativo})" title="${c.ativo?'Desativar':'Ativar'}">
+                  ${c.ativo ? '🟢' : '⚫'}
+                </button>
+              </td>
+              <td>
+                <button class="btn-ghost btn-sm" onclick="editCmd('${c.id}')" title="Editar resposta">✏️</button>
+                <button class="btn-ghost btn-sm" onclick="deleteCmd('${c.id}')" title="Remover">🗑</button>
+              </td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" class="empty">Nenhum comando criado ainda.</td></tr>';
+    } catch (e) { /* silencia se não autenticado ainda */ }
+  }
+
+  window.toggleCmd = (id, ativo) =>
+    action(() => api(`/api/comandos/${id}`, { method: 'PATCH', body: { ativo } }),
+           ativo ? 'Comando ativado.' : 'Comando desativado.').then(loadComandos);
+
+  window.deleteCmd = id => {
+    if (!confirm('Remover este comando?')) return;
+    action(() => api(`/api/comandos/${id}`, { method: 'DELETE' }), 'Comando removido.').then(loadComandos);
+  };
+
+  window.editCmd = async id => {
+    const cmds = await api('/api/comandos');
+    const cmd = cmds.find(c => c.id === id);
+    if (!cmd) return;
+    const nova = prompt(`Nova resposta para ${cmd.gatilho}:`, cmd.resposta || '');
+    if (nova === null) return;
+    action(() => api(`/api/comandos/${id}`, { method: 'PATCH', body: { resposta: nova } }),
+           'Comando atualizado.').then(loadComandos);
+  };
+
+  $('cmdTipo').addEventListener('change', () => {
+    $('cmdResposta').style.opacity = $('cmdTipo').value === 'mensagem' ? '1' : '0.3';
+    $('cmdResposta').disabled = $('cmdTipo').value !== 'mensagem';
+  });
+
+  $('btnAddCmd').addEventListener('click', () => {
+    const gatilho   = $('cmdGatilho').value.trim();
+    const descricao = $('cmdDescricao').value.trim();
+    const tipo      = $('cmdTipo').value;
+    const resposta  = $('cmdResposta').value.trim();
+    if (!gatilho) { toast('Digite o gatilho do comando.', 'err'); return; }
+    if (tipo === 'mensagem' && !resposta) { toast('Digite a resposta do comando.', 'err'); return; }
+    action(
+      () => api('/api/comandos', { method: 'POST', body: { gatilho, descricao, tipo, resposta } }),
+      `Comando ${gatilho} criado!`
+    ).then(() => {
+      $('cmdGatilho').value = '';
+      $('cmdDescricao').value = '';
+      $('cmdResposta').value = '';
+      loadComandos();
+    });
+  });
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   load();
+  loadComandos();
   setInterval(load, 10000);
+  setInterval(loadComandos, 15000);
 </script>
 </body>
-<footer>0.02</footer>
+<footer>0.03</footer>
 </html>
