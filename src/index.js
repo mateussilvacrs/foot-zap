@@ -384,8 +384,8 @@ app.get('/api/mensais', authMiddleware, (req, res) => {
 
 app.post('/api/mensal', authMiddleware, (req, res) => {
   try {
-    const { telefone, nome, obs } = req.body;
-    const mensal = db.addMensal(telefone, nome, obs);
+    const { telefone, nome, obs, validade } = req.body;
+    const mensal = db.addMensal(telefone, nome, obs, validade || null);
     res.status(201).json({ ok: true, mensal });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -405,10 +405,13 @@ app.delete('/api/mensal/:id', authMiddleware, (req, res) => {
 app.post('/api/mensal/:id/aprovar', authMiddleware, async (req, res) => {
   try {
     const { mensal, jaEraMensalista } = db.aprovarMensal(req.params.id);
-    // Notifica o jogador
+    // Monta mensagem com data de validade real, se existir
+    const validadeMsg = mensal.validade
+      ? ` até o dia ${new Date(mensal.validade + 'T12:00:00').toLocaleDateString('pt-BR')}`
+      : '';
     await whatsapp.sendPrivateMessage(
       mensal.telefone,
-      `✅ Olá, ${mensal.nome}! Seu pagamento foi confirmado e você está na lista de mensalistas até o dia 01/07.\n\nConfirme sua presença quando a enquete for aberta! ⚽`
+      `✅ Olá, ${mensal.nome}! Seu pagamento foi confirmado e você está na lista de mensalistas${validadeMsg}.\n\nConfirme sua presença quando a enquete for aberta! ⚽`
     ).catch(e => db.log('Erro notif aprovação', { error: e.message }));
     res.json({ ok: true, mensal, jaEraMensalista });
   } catch (e) { res.status(400).json({ error: e.message }); }

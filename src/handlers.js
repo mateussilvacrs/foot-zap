@@ -54,7 +54,51 @@ function formatLista(db) {
   ].join('\n');
 }
 
-function mensagemConvocacao() {
+function formatMensais(db) {
+  const mensais = db.getMensais();
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+
+  const aprovados = mensais.filter(m => m.statusCadastro === 'aprovado');
+  const pendentes = mensais.filter(m => m.statusCadastro === 'aguardando');
+
+  // Aprovados com validade vencida são destacados
+  const aprovadosAtivos   = aprovados.filter(m => !m.validade || new Date(m.validade) >= hoje);
+  const aprovadosVencidos = aprovados.filter(m => m.validade && new Date(m.validade) < hoje);
+
+  const linhas = ['💳 MENSALISTAS — STATUS DE PAGAMENTO', ''];
+
+  if (aprovadosAtivos.length) {
+    linhas.push(`✅ Pagos e ativos (${aprovadosAtivos.length}):`);
+    aprovadosAtivos.forEach((m, i) => {
+      const val = m.validade ? ` (válido até ${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')})` : '';
+      linhas.push(`${i + 1}. ${m.nome}${val}`);
+    });
+    linhas.push('');
+  }
+
+  if (aprovadosVencidos.length) {
+    linhas.push(`⚠️ Mensalidade vencida (${aprovadosVencidos.length}):`);
+    aprovadosVencidos.forEach((m, i) => {
+      const val = m.validade ? ` (venceu em ${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')})` : '';
+      linhas.push(`${i + 1}. ${m.nome}${val}`);
+    });
+    linhas.push('');
+  }
+
+  if (pendentes.length) {
+    linhas.push(`⏳ Aguardando pagamento (${pendentes.length}):`);
+    pendentes.forEach((m, i) => linhas.push(`${i + 1}. ${m.nome}`));
+    linhas.push('');
+  }
+
+  if (!aprovadosAtivos.length && !aprovadosVencidos.length && !pendentes.length) {
+    linhas.push('Nenhum mensalista cadastrado.');
+  }
+
+  return linhas.join('\n').trim();
+}
+
+function mensagemConvocacao(){
   return [
     '⚽ CONFIRMAÇÃO FUTEBOL DE QUARTA',
     'Mensalistas, confirmem presença respondendo a enquete ou pelo chat:',
@@ -88,7 +132,8 @@ function mensagemAjuda(isAdmin = false) {
       '/admin resumo',
       '/admin lembrar',
       '/admin add-mensalista <telefone> <nome>',
-      '/admin rm-mensalista <telefone>'
+      '/admin rm-mensalista <telefone>',
+      '/mensais              – Ver status de pagamentos'
     );
   }
 
@@ -191,6 +236,10 @@ async function handleCommand(context, services) {
     if (!customAtivos.length) return base;
     const extras = customAtivos.map(c => `${c.gatilho}  – ${c.descricao || c.tipo}`).join('\n');
     return base + '\n\nComandos extras:\n' + extras;
+  }
+  if (lower === '/mensais') {
+    if (!isAdmin) return 'Comando restrito aos administradores.';
+    return formatMensais(db);
   }
   if (lower === '/lista') return formatLista(db);
 
@@ -298,5 +347,6 @@ module.exports = {
   enviarLembretesPendentes,
   formatResumo,
   formatLista,
+  formatMensais,
   mensagemConvocacao
 };

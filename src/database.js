@@ -354,7 +354,7 @@ class Database {
     return this.state.mensais || [];
   }
 
-  addMensal(telefone, nome, obs) {
+  addMensal(telefone, nome, obs, validade) {
     if (!this.state.mensais) this.state.mensais = [];
     const tel = onlyDigits(telefone);
     if (!tel || !nome) throw new Error('Telefone e nome são obrigatórios.');
@@ -365,6 +365,7 @@ class Database {
       telefone: tel,
       nome: nome.trim(),
       obs: (obs || '').trim(),
+      validade: validade || null,   // data de validade da mensalidade (AAAA-MM-DD)
       statusCadastro: 'aguardando', // aguardando | aprovado | inativo
       criadoEm: new Date().toISOString(),
       aprovadoEm: null

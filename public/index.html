@@ -795,11 +795,10 @@
       const mensais = await api('/api/mensais');
       $('tbodyMensais').innerHTML = mensais.length
         ? mensais.map((m,i)=>{
-            const validadeStr = m.validade ? new Date(m.validade).toLocaleDateString('pt-BR') : '–';
             const hoje = new Date(); hoje.setHours(0,0,0,0);
-            const vencido = m.validade && new Date(m.validade) < hoje;
+            const vencido = m.validade && new Date(m.validade + 'T12:00:00') < hoje;
             const validadeTd = m.validade
-              ? `<span style="color:${vencido?'var(--red)':'var(--green)'};font-size:12px">${validadeStr}${vencido?' ⚠️':''}</span>`
+              ? `<span style="color:${vencido?'var(--red)':'var(--green)'};font-size:12px">${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')}${vencido?' ⚠️':''}</span>`
               : `<span style="color:var(--muted);font-size:12px">–</span>`;
             const podeAprovar = m.statusCadastro === 'aguardando' || m.statusCadastro === 'revogado' || m.statusCadastro === 'inativo';
             const podeRevogar = m.statusCadastro === 'aprovado';
