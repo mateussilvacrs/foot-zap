@@ -104,6 +104,7 @@ class Database {
    */
   resetarEnquete() {
     this.state.mensalistas.forEach(m => (m.status = 'pendente'));
+    this.state.avulsos = [];
     this.state.pollId = null;
     this.save();
     return this.resumo();
