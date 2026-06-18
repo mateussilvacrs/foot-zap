@@ -310,12 +310,8 @@
   <div class="panel">
     <h2>Mensagem no Grupo</h2>
     <textarea id="mensagem" placeholder="Escreva uma mensagem para enviar ao grupo…"></textarea>
-    <div style="margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="margin-top:10px">
       <button class="btn-green" id="btnSendMsg">Enviar mensagem</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--muted)">
-        <input type="checkbox" id="chkMencionarTodos" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)" />
-        @todos (mencionar todos do grupo)
-      </label>
     </div>
   </div>
 
@@ -369,80 +365,84 @@
     </div>
   </div>
 
-  <!-- Admins -->
-  <div class="panel" style="max-width:640px">
-    <h2>👑 Administradores</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
-      Admins podem usar os comandos <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/admin</code> no privado do bot.
-      Ao adicionar, o jogador recebe uma notificação automática no WhatsApp.
-    </p>
-    <div class="form-row">
-      <input id="inpAdminTel"  placeholder="5511999999999" style="flex:1.2"/>
-      <input id="inpAdminNome" placeholder="Nome (opcional)" style="flex:2"/>
-      <button class="btn-purple" id="btnAddAdmin" style="flex-shrink:0">+ Adicionar Admin</button>
-    </div>
-    <table>
-      <thead>
-        <tr><th>#</th><th>Telefone</th><th>Nome</th><th>Adicionado em</th><th></th></tr>
-      </thead>
-      <tbody id="tbodyAdmins"></tbody>
-    </table>
-  </div>
-
   <!-- Comandos personalizados -->
   <div class="panel">
     <h2>Comandos Personalizados</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
-      Crie atalhos que os jogadores podem usar no grupo.
-      Ex: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/pix</code> → mensagem fixa. &nbsp;|&nbsp;
-      <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/nauan</code> → contador de faltas (incrementa a cada uso).
+    <p style="color:var(--muted);font-size:12px;margin-bottom:16px">
+      Crie atalhos respondidos pelo bot no grupo ou no privado.
+      Variáveis para contador: <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">{valor}</code> e <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">{jogos}</code>.
     </p>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-      <input id="cmdGatilho"   placeholder="/nauan  (/ é opcional)" />
-      <input id="cmdDescricao" placeholder="Descrição curta (aparece no /ajuda)" />
-      <select id="cmdTipo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px">
-        <option value="mensagem">💬 Mensagem fixa</option>
-        <option value="contador">🔢 Contador de faltas</option>
-        <option value="lista">📋 Envia a lista</option>
-        <option value="resumo">📊 Envia o resumo</option>
-      </select>
+    <!-- Linha 1: gatilho + descrição + tipo -->
+    <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Gatilho</div>
+        <input id="cmdGatilho" placeholder="/gol  (/ é opcional)" />
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Descrição (aparece no /ajuda)</div>
+        <input id="cmdDescricao" placeholder="Ex: Registra um gol do Mateus" />
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Tipo</div>
+        <select id="cmdTipo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
+          <option value="mensagem">💬 Mensagem fixa</option>
+          <option value="contador">🔢 Contador</option>
+          <option value="lista">📋 Envia a lista</option>
+          <option value="resumo">📊 Envia o resumo</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Linha 2: permissão + escopo -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">👤 Quem pode usar</div>
+        <select id="cmdPermissao" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
+          <option value="todos">Todos os participantes</option>
+          <option value="admin">Somente admins</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">📍 Onde funciona</div>
+        <select id="cmdEscopo" style="background:var(--surface2);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
+          <option value="ambos">Grupo e privado</option>
+          <option value="grupo">Somente no grupo</option>
+          <option value="privado">Somente no privado do bot</option>
+        </select>
+      </div>
     </div>
 
     <!-- Campos para mensagem fixa -->
     <div id="camposMensagem" style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:16px">
-      <textarea id="cmdResposta" placeholder="Texto que o bot responde" style="min-height:64px"></textarea>
+      <textarea id="cmdResposta" placeholder="Texto que o bot responde quando alguém usar o comando" style="min-height:64px"></textarea>
       <button class="btn-green" id="btnAddCmd" style="align-self:end;height:36px">+ Criar</button>
     </div>
 
-    <!-- Campos para contador -->
+    <!-- Campos para contador genérico -->
     <div id="camposContador" style="display:none;margin-bottom:16px">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Nome exibido na mensagem</div>
-          <input id="cntNome" placeholder="ex: Nauan" />
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Incremento por uso</div>
+          <input id="cntIncremento" type="number" min="1" value="1" placeholder="1" />
         </div>
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Faltas por uso</div>
-          <input id="cntIncremento" type="number" min="1" value="1" />
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Faltas por jogo</div>
-          <input id="cntCiclo" type="number" min="1" value="12" />
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Jogos por ciclo <span style="opacity:.6">(0 = conta uso a uso)</span></div>
+          <input id="cntCiclo" type="number" min="0" value="0" placeholder="0" />
         </div>
         <button class="btn-green" id="btnAddCmdContador" style="height:36px">+ Criar</button>
       </div>
       <div style="margin-top:8px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
-          Template da mensagem &nbsp;<span style="opacity:.6">variáveis: {nome} {faltas} {jogos}</span>
+          Template da mensagem &nbsp;<span style="opacity:.6">variáveis: {valor} = contador atual &nbsp; {jogos} = número de jogos</span>
         </div>
-        <input id="cntTemplate" placeholder="{nome} pediu {faltas} falta(s) em apenas {jogos} jogo(s)" />
+        <input id="cntTemplate" placeholder="Ex: ⚽ Mateus marcou {valor} gol(s) em {jogos} jogo(s)" />
       </div>
     </div>
 
     <table>
       <thead>
-        <tr><th>Gatilho</th><th>Tipo</th><th>Info</th><th>Placar</th><th>Ativo</th><th></th></tr>
+        <tr><th>Gatilho</th><th>Tipo</th><th>Permissão</th><th>Escopo</th><th>Info / Placar</th><th>Ativo</th><th></th></tr>
       </thead>
       <tbody id="tbodyComandos"></tbody>
     </table>
@@ -685,61 +685,19 @@
 
   $('btnSendMsg').addEventListener('click', () => {
     const msg = $('mensagem').value.trim();
-    const mencionar = $('chkMencionarTodos').checked;
     if (!msg) { toast('Escreva uma mensagem.', 'err'); return; }
     action(
-      () => api('/api/acao/mensagem', { method: 'POST', body: { mensagem: msg, mencionar_todos: mencionar } }),
-      mencionar ? 'Mensagem com @todos enviada!' : 'Mensagem enviada no grupo!'
-    ).then(() => { $('mensagem').value = ''; $('chkMencionarTodos').checked = false; });
+      () => api('/api/acao/mensagem', { method: 'POST', body: { mensagem: msg } }),
+      'Mensagem enviada no grupo!'
+    ).then(() => { $('mensagem').value = ''; });
   });
-
-  // ── Admins ─────────────────────────────────────────────────────────────────
-
-  async function loadAdmins() {
-    try {
-      const admins = await api('/api/admins');
-      $('tbodyAdmins').innerHTML = admins.length
-        ? admins.map((a, i) => `
-            <tr>
-              <td style="color:var(--muted)">${i + 1}</td>
-              <td style="font-family:var(--mono);font-size:12px">${a.telefone}</td>
-              <td>${a.nome || '<span style="color:var(--muted)">–</span>'}</td>
-              <td style="color:var(--muted);font-size:12px">${a.criadoEm ? new Date(a.criadoEm).toLocaleDateString('pt-BR') : '–'}</td>
-              <td>
-                <button class="btn-ghost btn-sm" title="Remover admin" onclick="removeAdmin('${a.telefone}','${a.nome || a.telefone}')">🗑</button>
-              </td>
-            </tr>`).join('')
-        : '<tr><td colspan="5" class="empty">Nenhum admin cadastrado aqui. Os do .env continuam valendo.</td></tr>';
-    } catch (e) { /* silencia se não autenticado */ }
-  }
-
-  $('btnAddAdmin').addEventListener('click', () => {
-    const tel  = $('inpAdminTel').value.trim();
-    const nome = $('inpAdminNome').value.trim();
-    if (!tel) { toast('Informe o telefone do admin.', 'err'); return; }
-    action(
-      () => api('/api/admin', { method: 'POST', body: { telefone: tel, nome } }),
-      `${nome || tel} adicionado como admin! Notificação enviada.`
-    ).then(() => {
-      $('inpAdminTel').value = '';
-      $('inpAdminNome').value = '';
-      loadAdmins();
-    });
-  });
-
-  window.removeAdmin = (tel, nome) => {
-    if (!confirm(`Remover ${nome} dos admins? Ele será notificado.`)) return;
-    action(
-      () => api(`/api/admin/${tel}`, { method: 'DELETE' }),
-      `${nome} removido dos admins.`
-    ).then(loadAdmins);
-  };
 
   // ── Comandos personalizados ─────────────────────────────────────────────────
 
-  const tipoLabel = { mensagem: '💬 Mensagem', lista: '📋 Lista', resumo: '📊 Resumo', contador: '🔢 Contador' };
+  const tipoLabel      = { mensagem: '💬 Mensagem', lista: '📋 Lista', resumo: '📊 Resumo', contador: '🔢 Contador' };
+  const permissaoLabel = { todos: '👥 Todos', admin: '🔐 Admin' };
+  const escopoLabel    = { grupo: '👥 Grupo', privado: '🔒 Privado', ambos: '🌐 Ambos' };
 
-  // Alterna campos do formulário conforme o tipo selecionado
   $('cmdTipo').addEventListener('change', () => {
     const t = $('cmdTipo').value;
     $('camposMensagem').style.display = t === 'mensagem' ? 'grid' : 'none';
@@ -752,22 +710,25 @@
       $('tbodyComandos').innerHTML = cmds.length
         ? cmds.map(c => {
             const info = c.tipo === 'contador'
-              ? `<span style="font-size:11px;color:var(--muted)">${c.contadorConfig?.template || ''}</span>`
+              ? `<span style="font-size:11px;color:var(--muted)">${c.contadorConfig?.template || '{valor}'}</span>`
               : `${c.descricao ? `<span style="color:var(--muted)">${c.descricao}</span><br>` : ''}
                  <span style="font-size:11px">${(c.resposta||'').slice(0,60)}${(c.resposta||'').length>60?'…':''}</span>`;
 
             const placar = c.tipo === 'contador'
-              ? `<span style="font-family:var(--mono);font-size:13px;color:var(--amber)">
-                   ${c.contadorValor||0} faltas / ${c.contadorJogos||1} jogo(s)
-                 </span>
-                 <button class="btn-ghost btn-sm" onclick="resetarContador('${c.id}')" title="Zerar contador">↺</button>`
+              ? `<div style="display:flex;align-items:center;gap:6px">
+                   <span style="font-family:var(--mono);font-size:13px;color:var(--amber)">
+                     ${c.contadorValor||0}${c.contadorConfig?.ciclo > 0 ? ` / ${c.contadorJogos||1} jogo(s)` : ''}
+                   </span>
+                   <button class="btn-ghost btn-sm" onclick="resetarContador('${c.id}')" title="Zerar contador">↺</button>
+                 </div>`
               : '—';
 
             return `<tr>
               <td><code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:var(--mono)">${c.gatilho}</code></td>
               <td>${tipoLabel[c.tipo] || c.tipo}</td>
-              <td style="max-width:220px">${info}</td>
-              <td>${placar}</td>
+              <td><span class="pill ${c.permissao === 'admin' ? 'amber' : 'muted'}">${permissaoLabel[c.permissao||'todos']}</span></td>
+              <td><span class="pill muted">${escopoLabel[c.escopo||'grupo']}</span></td>
+              <td style="max-width:200px">${c.tipo === 'contador' ? placar : info}</td>
               <td>
                 <button class="btn-ghost btn-sm" onclick="toggleCmd('${c.id}',${!c.ativo})" title="${c.ativo?'Desativar':'Ativar'}">
                   ${c.ativo ? '🟢' : '⚫'}
@@ -780,7 +741,7 @@
               </td>
             </tr>`;
           }).join('')
-        : '<tr><td colspan="6" class="empty">Nenhum comando criado ainda.</td></tr>';
+        : '<tr><td colspan="7" class="empty">Nenhum comando criado ainda.</td></tr>';
     } catch (e) { /* silencia se não autenticado ainda */ }
   }
 
@@ -808,80 +769,78 @@
     const cmd = cmds.find(c => c.id === id);
     if (!cmd) return;
     const novoTemplate = prompt(
-      `Template para ${cmd.gatilho}\nVariáveis: {nome} {faltas} {jogos}`,
-      cmd.contadorConfig?.template || ''
+      `Template para ${cmd.gatilho}\nVariáveis: {valor} = contador atual  |  {jogos} = número de jogos`,
+      cmd.contadorConfig?.template || '{valor}'
     );
     if (novoTemplate === null) return;
-    const novoNome = prompt('Nome exibido:', cmd.contadorConfig?.nome || '');
-    if (novoNome === null) return;
     action(
       () => api(`/api/comandos/${id}`, {
         method: 'PATCH',
-        body: { contadorConfig: { ...cmd.contadorConfig, template: novoTemplate, nome: novoNome } }
+        body: { contadorConfig: { ...cmd.contadorConfig, template: novoTemplate } }
       }),
       'Template atualizado!'
     ).then(loadComandos);
   };
 
   window.resetarContador = id => {
-    if (!confirm('Zerar o contador? Faltas e jogos voltam a 0/1.')) return;
+    if (!confirm('Zerar o contador?')) return;
     action(() => api(`/api/comandos/${id}/resetar`, { method: 'POST' }), 'Contador zerado!').then(loadComandos);
   };
 
-  // Criar comando mensagem fixa
+  function cmdFormData() {
+    return {
+      gatilho:    $('cmdGatilho').value.trim(),
+      descricao:  $('cmdDescricao').value.trim(),
+      tipo:       $('cmdTipo').value,
+      permissao:  $('cmdPermissao').value,
+      escopo:     $('cmdEscopo').value
+    };
+  }
+
+  function clearCmdForm() {
+    ['cmdGatilho','cmdDescricao','cmdResposta','cntTemplate'].forEach(id => { $(id).value = ''; });
+    $('cntIncremento').value = '1';
+    $('cntCiclo').value = '0';
+    $('cmdTipo').value = 'mensagem';
+    $('cmdPermissao').value = 'todos';
+    $('cmdEscopo').value = 'ambos';
+    $('camposMensagem').style.display = 'grid';
+    $('camposContador').style.display  = 'none';
+  }
+
   $('btnAddCmd').addEventListener('click', () => {
-    const gatilho   = $('cmdGatilho').value.trim();
-    const descricao = $('cmdDescricao').value.trim();
-    const resposta  = $('cmdResposta').value.trim();
-    const tipo      = $('cmdTipo').value;
-    if (!gatilho) { toast('Digite o gatilho.', 'err'); return; }
-    if (!resposta) { toast('Digite a resposta.', 'err'); return; }
+    const d = cmdFormData();
+    const resposta = $('cmdResposta').value.trim();
+    if (!d.gatilho) { toast('Digite o gatilho.', 'err'); return; }
+    if (!resposta)  { toast('Digite a resposta.', 'err'); return; }
     action(
-      () => api('/api/comandos', { method: 'POST', body: { gatilho, descricao, tipo, resposta } }),
-      `Comando ${gatilho} criado!`
-    ).then(() => {
-      $('cmdGatilho').value = ''; $('cmdDescricao').value = ''; $('cmdResposta').value = '';
-      loadComandos();
-    });
+      () => api('/api/comandos', { method: 'POST', body: { ...d, resposta } }),
+      `Comando ${d.gatilho} criado!`
+    ).then(() => { clearCmdForm(); loadComandos(); });
   });
 
   $('btnAddCmdContador').addEventListener('click', () => {
-    const gatilho    = $('cmdGatilho').value.trim();
-    const descricao  = $('cmdDescricao').value.trim();
-    const nome       = $('cntNome').value.trim();
+    const d = cmdFormData();
+    const template   = $('cntTemplate').value.trim();
     const incremento = Number($('cntIncremento').value) || 1;
-    const ciclo      = Number($('cntCiclo').value) || 12;
-    const template   = $('cntTemplate').value.trim(); // vazio = backend usa o padrão
-
-    if (!gatilho) { toast('Digite o gatilho.', 'err'); return; }
-    if (!nome)    { toast('Digite o nome exibido.', 'err'); return; }
-
+    const ciclo      = Number($('cntCiclo').value) || 0;
+    if (!d.gatilho) { toast('Digite o gatilho.', 'err'); return; }
     action(
       () => api('/api/comandos', {
         method: 'POST',
-        body: {
-          gatilho, descricao, tipo: 'contador',
-          contadorConfig: { nome, incrementoPor: incremento, ciclo, template }
-        }
+        body: { ...d, tipo: 'contador', contadorConfig: { template, incrementoPor: incremento, ciclo } }
       }),
-      `Contador ${gatilho} criado!`
-    ).then(() => {
-      $('cmdGatilho').value = ''; $('cmdDescricao').value = '';
-      $('cntNome').value = ''; $('cntTemplate').value = '';
-      $('cntIncremento').value = '1'; $('cntCiclo').value = '12';
-      loadComandos();
-    });
+      `Contador ${d.gatilho} criado!`
+    ).then(() => { clearCmdForm(); loadComandos(); });
   });
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
   load();
   loadComandos();
-  loadAdmins();
   setInterval(load, 10000);
   setInterval(loadComandos, 15000);
-  setInterval(loadAdmins, 30000);
 </script>
 </body>
-<footer>0.02</footer>
+<footer>0.03</footer>
 </html>

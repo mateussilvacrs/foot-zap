@@ -24,13 +24,14 @@ class Database {
           configuracoes: { totalVagas: 25, valorAvulso: 30 },
           mensalistas: [],
           avulsos: [],
-          comandos: [],   // comandos personalizados criados pelo admin
-          admins: []      // admins dinâmicos além dos do .env
+          comandos: []   // comandos personalizados criados pelo admin
         };
 
-    // Garante que versões antigas do estado.json tenham os campos
-    if (!this.state.comandos) { this.state.comandos = []; this.save(); }
-    if (!this.state.admins)   { this.state.admins = [];   this.save(); }
+    // Garante que versões antigas do estado.json tenham o campo
+    if (!this.state.comandos) {
+      this.state.comandos = [];
+      this.save();
+    }
   }
 
   save() {
@@ -221,7 +222,7 @@ class Database {
     return this.state.comandos || [];
   }
 
-  addComando({ gatilho, descricao, tipo, resposta, contadorConfig }) {
+  addComando({ gatilho, descricao, tipo, resposta, contadorConfig, permissao, escopo }) {
     const gatilhoNorm = gatilho.startsWith('/') ? gatilho.toLowerCase() : `/${gatilho.toLowerCase()}`;
 
     const existe = this.state.comandos.find(c => c.gatilho === gatilhoNorm);
@@ -233,16 +234,18 @@ class Database {
       descricao: descricao || '',
       tipo: tipo || 'mensagem',   // 'mensagem' | 'lista' | 'resumo' | 'contador'
       resposta: resposta || '',
-      ativo: true
+      ativo: true,
+      permissao: permissao || 'todos',   // 'todos' | 'admin'
+      escopo: escopo || 'grupo'          // 'grupo' | 'privado' | 'ambos'
     };
 
     if (tipo === 'contador') {
       const templateDigitado = (contadorConfig?.template || '').trim();
       novo.contadorConfig = {
-        template: templateDigitado || '{nome} pediu {faltas} faltas em apenas {jogos} jogos',
-        nome: contadorConfig?.nome || '',
+        // template livre — variáveis: {valor} e {jogos}
+        template: templateDigitado || '{valor}',
         incrementoPor: Number(contadorConfig?.incrementoPor) || 1,
-        ciclo: Number(contadorConfig?.ciclo) || 12,
+        ciclo: Number(contadorConfig?.ciclo) || 0,  // 0 = sem ciclo de jogos
       };
       novo.contadorValor = 0;
       novo.contadorJogos = 1;
@@ -255,32 +258,31 @@ class Database {
 
   /**
    * Incrementa o contador de um comando do tipo 'contador'.
-   * Retorna { cmd, faltas, jogos, mensagem } após o incremento.
+   * Template livre com variáveis {valor} e {jogos}.
    */
   incrementarContador(id) {
     const cmd = this.state.comandos.find(c => c.id === id);
     if (!cmd || cmd.tipo !== 'contador') return null;
 
-    const cfg = cmd.contadorConfig || {};
-    const incremento = Number(cfg.incrementoPor) || 1;
-    const ciclo      = Number(cfg.ciclo) || 12;
+    const cfg   = cmd.contadorConfig || {};
+    const incr  = Number(cfg.incrementoPor) || 1;
+    const ciclo = Number(cfg.ciclo) || 0;
 
-    cmd.contadorValor = (Number(cmd.contadorValor) || 0) + incremento;
-    cmd.contadorJogos = Math.floor((cmd.contadorValor - 1) / ciclo) + 1;
+    cmd.contadorValor = (Number(cmd.contadorValor) || 0) + incr;
 
-    const template = cfg.template || '{nome} pediu {faltas} falta(s) em apenas {jogos} jogo(s)';
-    const nome     = cfg.nome || '';
+    if (ciclo > 0) {
+      cmd.contadorJogos = Math.floor((cmd.contadorValor - 1) / ciclo) + 1;
+    } else {
+      cmd.contadorJogos = (Number(cmd.contadorJogos) || 0) + 1;
+    }
 
+    const template = cfg.template || '{valor}';
     const mensagem = template
-      .replace(/\{nome\}/g,   nome)
-      .replace(/\{faltas\}/g, String(cmd.contadorValor))
-      .replace(/\{jogos\}/g,  String(cmd.contadorJogos));
+      .replace(/\{valor\}/g, String(cmd.contadorValor))
+      .replace(/\{jogos\}/g, String(cmd.contadorJogos));
 
     this.save();
-
-    console.log('[CONTADOR]', { id, template, nome, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem });
-
-    return { cmd, faltas: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem };
+    return { cmd, valor: cmd.contadorValor, jogos: cmd.contadorJogos, mensagem };
   }
 
   /**
@@ -308,36 +310,6 @@ class Database {
     this.state.comandos = this.state.comandos.filter(c => c.id !== id);
     this.save();
     return this.state.comandos.length < antes;
-  }
-
-  // ─── Admins dinâmicos ─────────────────────────────────────────────────────
-
-  /**
-   * Retorna todos os admins cadastrados no banco.
-   * Os do .env (ADMIN_NUMBERS) são gerenciados separadamente pelo handlers.
-   */
-  getAdmins() {
-    return this.state.admins || [];
-  }
-
-  addAdmin(telefone, nome) {
-    if (!this.state.admins) this.state.admins = [];
-    const tel = onlyDigits(telefone);
-    if (!tel) throw new Error('Telefone inválido.');
-    const existe = this.state.admins.find(a => a.telefone === tel);
-    if (existe) throw new Error(`${tel} já é administrador.`);
-    const admin = { telefone: tel, nome: (nome || '').trim(), criadoEm: new Date().toISOString() };
-    this.state.admins.push(admin);
-    this.save();
-    return admin;
-  }
-
-  removeAdmin(telefone) {
-    const tel = onlyDigits(telefone);
-    const antes = (this.state.admins || []).length;
-    this.state.admins = (this.state.admins || []).filter(a => a.telefone !== tel);
-    this.save();
-    return this.state.admins.length < antes;
   }
 
   findComando(gatilho) {

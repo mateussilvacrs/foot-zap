@@ -87,15 +87,6 @@ app.post('/webhook', async (req, res) => {
       data?.message?.pollUpdateMessage !== undefined;
 
     if (isPollEvent) {
-      // ── Garante que é a enquete criada pelo bot ──────────────────────────
-      const pollIdAtual = db.getState().pollId;
-      const msgId = data?.key?.id || data?.messageId || '';
-
-      if (pollIdAtual && msgId && msgId !== pollIdAtual) {
-        console.log('[POLL] Ignorado — pertence a outra enquete:', { msgId, pollIdAtual });
-        return;
-      }
-
       // Telefone real (número internacional, sem LID)
       const participantAlt = data?.key?.participantAlt || '';   // "5511983884799@s.whatsapp.net"
       const participantLid = data?.key?.participant    || '';   // "267739805548693@lid"
@@ -322,10 +313,11 @@ app.post('/api/acao/resumo', authMiddleware, async (req, res) => {
 // Mensagem livre no grupo (corrige 404 do dashboard)
 app.post('/api/acao/mensagem', authMiddleware, async (req, res) => {
   const mensagem = String(req.body.mensagem || '').trim();
+  const mencionar = Boolean(req.body.mencionar_todos);
   if (!mensagem || mensagem.length < 2) {
     return res.status(400).json({ error: 'Mensagem obrigatória.' });
   }
-  await whatsapp.sendGroupMessage(mensagem).catch(e => console.error(e));
+  await whatsapp.sendGroupMessage(mensagem, mencionar).catch(e => console.error(e));
   res.json({ ok: true });
 });
 
@@ -378,44 +370,6 @@ app.post('/api/comandos/:id/resetar', authMiddleware, (req, res) => {
 app.delete('/api/comandos/:id', authMiddleware, (req, res) => {
   const removed = db.removeComando(req.params.id);
   res.json({ ok: removed });
-});
-
-// ─── Admins ────────────────────────────────────────────────────────────────────
-
-app.get('/api/admins', authMiddleware, (req, res) => {
-  res.json(db.getAdmins());
-});
-
-app.post('/api/admin', authMiddleware, async (req, res) => {
-  try {
-    const { telefone, nome } = req.body;
-    if (!telefone) return res.status(400).json({ error: 'Telefone obrigatório.' });
-    const admin = db.addAdmin(telefone, nome || '');
-
-    // Notifica o novo admin via WhatsApp privado
-    await whatsapp.sendPrivateMessage(
-      admin.telefone,
-      `🔐 Olá${admin.nome ? `, ${admin.nome}` : ''}! Você agora é administrador do Futebol Bot.\n\nVocê pode usar os comandos /admin no privado do bot.`
-    ).catch(e => db.log('Erro ao notificar novo admin', { error: e.message }));
-
-    res.status(201).json({ ok: true, admin });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-app.delete('/api/admin/:telefone', authMiddleware, async (req, res) => {
-  const removed = db.removeAdmin(req.params.telefone);
-  if (!removed) return res.status(404).json({ error: 'Admin não encontrado.' });
-
-  // Notifica remoção
-  const tel = req.params.telefone.replace(/\D/g, '');
-  await whatsapp.sendPrivateMessage(
-    tel,
-    '🔒 Você foi removido da lista de administradores do Futebol Bot.'
-  ).catch(() => {});
-
-  res.json({ ok: true, removed });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

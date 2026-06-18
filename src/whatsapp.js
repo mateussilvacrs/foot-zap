@@ -33,30 +33,72 @@ async function sendText(number, text) {
 }
 
 /**
- * Envia mensagem no grupo configurado em WHATSAPP_GROUP_ID.
- * Se o texto contiver @todos ou @everyone, dispara mentionsEveryOne.
+ * Busca os participantes do grupo via Evolution API.
+ * Tenta dois endpoints diferentes para compatibilidade com v1 e v2.
  */
-async function sendGroupMessage(text) {
+async function getGroupParticipants(groupId) {
+  const { instance, apiUrl, apiKey } = requiredConfig();
+
+  // Tenta endpoint v2 primeiro, depois v1 como fallback
+  const endpoints = [
+    `/group/participants/${instance}?groupJid=${groupId}`,
+    `/group/findParticipants/${instance}?groupJid=${groupId}`
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(`${apiUrl}${ep}`, {
+        headers: { 'Content-Type': 'application/json', apikey: apiKey }
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      // Diferentes versões retornam em campos diferentes
+      const list =
+        data?.participants ||
+        data?.response?.participants ||
+        data?.data?.participants ||
+        (Array.isArray(data) ? data : []);
+      const jids = list.map(p => p.id || p.jid || p).filter(s => typeof s === 'string' && s.includes('@'));
+      if (jids.length) return jids;
+    } catch (_) { /* tenta próximo */ }
+  }
+
+  console.warn('[WA] Não foi possível buscar participantes do grupo');
+  return [];
+}
+
+/**
+ * Envia mensagem no grupo configurado em WHATSAPP_GROUP_ID.
+ * Se mencionar=true, busca participantes e passa o array `mentioned`
+ * que é obrigatório para o @todos funcionar na Evolution API.
+ */
+async function sendGroupMessage(text, mencionar = false) {
   const { groupId, instance } = requiredConfig();
   if (!groupId) throw new Error('WHATSAPP_GROUP_ID não configurado.');
 
-  const mentionAll =
+  // Detecta @todos inline no texto OU flag explícita
+  const temMarcacao =
+    mencionar ||
     text.includes('@todos') ||
     text.includes('@everyone') ||
     text.includes('@all');
 
-  if (mentionAll) {
-    // Remove o @todos do texto e deixa o WhatsApp exibir a menção nativa
+  if (temMarcacao) {
+    // Remove marcadores do texto — o WhatsApp mostra a menção nativa
     const textoLimpo = text
       .replace(/@todos|@everyone|@all/gi, '')
       .trim();
 
+    const participants = await getGroupParticipants(groupId);
+
     return postEvolution(`/message/sendText/${instance}`, {
       number: groupId,
-      text: textoLimpo,
+      text: textoLimpo || text.trim(),
+      mentioned: participants,        // obrigatório para menção funcionar
       options: {
         delay: 800,
-        mentionsEveryOne: true
+        mentionsEveryOne: true,
+        mentioned: participants       // Evolution v1 aceita aqui, v2 no raiz
       }
     });
   }
@@ -144,6 +186,7 @@ function extractWebhookMessage(body = {}) {
 module.exports = {
   sendText,
   sendGroupMessage,
+  getGroupParticipants,
   sendPrivateMessage,
   sendPoll,
   getPollStatus,
