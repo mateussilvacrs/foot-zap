@@ -133,8 +133,19 @@ app.post('/webhook', async (req, res) => {
         }
       }
 
-      const atualizado = db.updatePlayerStatus(telefoneVotante, novoStatus);
-      console.log('[POLL] Resultado:', { telefoneVotante, novoStatus, atualizado });
+const { success, promovidos } = db.updatePlayerStatus(telefoneVotante, novoStatus);
+      console.log('[POLL] Resultado:', { telefoneVotante, novoStatus, atualizado: success });
+      
+      // Envia notificação aos promovidos
+      if (promovidos && promovidos.length > 0) {
+        const valor = db.getState().configuracoes.valorAvulso;
+        for (const p of promovidos) {
+          await whatsapp.sendPrivateMessage(
+            p.telefone,
+            `⚽ Boa notícia, ${p.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+          ).catch(e => console.error('[WEBHOOK] Erro ao notificar promovido', e));
+        }
+      }
       return;
     }
 
@@ -202,13 +213,22 @@ app.post('/api/poll/reset', authMiddleware, (req, res) => {
 app.get('/api/vagas', authMiddleware, (req, res) => {
   res.json({ totalVagas: db.getState().configuracoes?.totalVagas || 25 });
 });
-app.post('/api/vagas', authMiddleware, (req, res) => {
+app.post('/api/vagas', authMiddleware, async (req, res) => {
   if (!db.getState().configuracoes) db.getState().configuracoes = {};
   db.getState().configuracoes.totalVagas = Number(req.body.totalVagas);
   db.save();
   
-  // Recalcula e promove avulsos automaticamente com o novo número de vagas
-  db.liberarAvulsos(); 
+  const promovidos = db.liberarAvulsos();
+  
+  if (promovidos.length > 0) {
+    const valor = db.getState().configuracoes.valorAvulso;
+    for (const p of promovidos) {
+      await whatsapp.sendPrivateMessage(
+        p.telefone,
+        `⚽ Boa notícia, ${p.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+      ).catch(e => db.log('Erro ao notificar promovido', { error: e.message }));
+    }
+  }
   
   res.json({ ok: true });
 });
@@ -293,8 +313,8 @@ app.patch('/api/player/:telefone/status', authMiddleware, (req, res) => {
   if (!validos.includes(status)) {
     return res.status(400).json({ error: 'Status inválido.' });
   }
-  const atualizado = db.updatePlayerStatus(tel, status);
-  if (!atualizado) return res.status(404).json({ error: 'Jogador não encontrado.' });
+const { success } = db.updatePlayerStatus(tel, status);
+  if (!success) return res.status(404).json({ error: 'Jogador não encontrado.' });
   res.json({ ok: true });
 });
 

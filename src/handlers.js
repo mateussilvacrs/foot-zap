@@ -276,9 +276,20 @@ async function handleCommand(context, services) {
       return 'Use /confirmar sim ou /confirmar nao.';
     }
 
-    const jogador = db.confirmarMensalista(context.telefone, context.nome, status);
+const { jogador, promovidos } = db.confirmarMensalista(context.telefone, context.nome, status);
     if (!jogador) {
       return 'Não encontrei você como mensalista. Se quiser entrar como avulso, use /querojogar.';
+    }
+
+    // Se houver promovidos, envia mensagem no privado deles
+    if (promovidos && promovidos.length > 0) {
+      const valor = db.getState().configuracoes.valorAvulso;
+      for (const p of promovidos) {
+        await whatsapp.sendPrivateMessage(
+          p.telefone,
+          `⚽ Boa notícia, ${p.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+        ).catch(e => db.log('Erro ao notificar promovido', { error: e.message }));
+      }
     }
 
     if (sheets) {

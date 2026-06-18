@@ -137,32 +137,35 @@ class Database {
 updatePlayerStatus(telefone, status) {
     const tel = onlyDigits(telefone);
     const p = this.state.mensalistas.find(m => m.telefone === tel);
+    let promovidos = [];
+    
     if (p) {
       p.status = status;
       this.save();
       
-      // Promove a fila se o status for alterado para 'nao'
       if (status === 'nao') {
-        this.liberarAvulsos(); 
+        promovidos = this.liberarAvulsos();
       }
-      return true;
+      return { success: true, promovidos };
     }
-    return false;
+    return { success: false, promovidos: [] };
   }
 
-  confirmarMensalista(telefone, nome, status) {
+confirmarMensalista(telefone, nome, status) {
     const tel = onlyDigits(telefone);
     const p = this.state.mensalistas.find(m => m.telefone === tel);
-    if (!p) return null;
+    let promovidos = [];
+    
+    if (!p) return { jogador: null, promovidos };
+    
     p.status = status;
     if (nome) p.nome = nome;
     this.save();
     
-    // Promove a fila se o status for alterado para 'nao'
     if (status === 'nao') {
-      this.liberarAvulsos();
+      promovidos = this.liberarAvulsos();
     }
-    return p;
+    return { jogador: p, promovidos };
   }
 
   // ─── Avulsos ──────────────────────────────────────────────────────────────
@@ -442,16 +445,22 @@ updatePlayerStatus(telefone, status) {
   /**
    * Move avulsos da fila de espera para confirmado ao fechar a rodada.
    */
-  liberarAvulsos() {
+liberarAvulsos() {
     const { configuracoes, mensalistas, avulsos } = this.state;
     const confirmadosMensalistas = mensalistas.filter(m => m.status === 'sim').length;
     let slots = configuracoes.totalVagas - confirmadosMensalistas;
+    const promovidos = []; // Guarda quem saiu da espera
 
     for (const a of avulsos) {
       if (a.status === 'confirmado') { slots--; continue; }
-      if (a.status === 'espera' && slots > 0) { a.status = 'confirmado'; slots--; }
+      if (a.status === 'espera' && slots > 0) { 
+        a.status = 'confirmado'; 
+        slots--; 
+        promovidos.push(a); // Adiciona na lista de notificação
+      }
     }
     this.save();
+    return promovidos;
   }
 }
 
