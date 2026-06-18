@@ -409,11 +409,26 @@
       <input id="inpMensalTel"  placeholder="5511999999999" style="flex:1.2"/>
       <input id="inpMensalNome" placeholder="Nome" style="flex:2"/>
       <input id="inpMensalObs"  placeholder="Obs (ex: Pix enviado)" style="flex:2"/>
-      <button class="btn-green" id="btnAddMensal" style="flex-shrink:0">+ Cadastrar</button>
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        <label style="font-size:10px;color:var(--muted)">Válido até</label>
+        <input id="inpMensalValidade" type="date" style="width:150px"/>
+      </div>
+      <button class="btn-green" id="btnAddMensal" style="flex-shrink:0;align-self:flex-end">+ Cadastrar</button>
+    </div>
+    <!-- Barra de ações em massa para Mensais -->
+    <div id="bulkBarMensais" style="display:none;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+      <span id="bulkCountMensais" style="font-size:12px;color:var(--muted);flex:1">0 selecionados</span>
+      <button class="btn-green btn-sm"  onclick="bulkAprovar()">✅ Aprovar</button>
+      <button class="btn-amber btn-sm"  onclick="bulkRevogar()">↩ Revogar</button>
+      <button class="btn-red btn-sm"    onclick="bulkDeleteMensais()">🗑 Remover</button>
+      <button class="btn-ghost btn-sm"  onclick="clearSelectionMensais()" style="margin-left:4px">✕</button>
     </div>
     <table>
       <thead>
-        <tr><th>#</th><th>Nome</th><th>Telefone</th><th>Obs</th><th>Status</th><th>Aprovado em</th><th></th></tr>
+        <tr>
+          <th><input type="checkbox" id="chkAllMensais" title="Selecionar todos" onchange="toggleAllMensais(this.checked)"/></th>
+          <th>#</th><th>Nome</th><th>Telefone</th><th>Obs</th><th>Status</th><th>Aprovado em</th><th>Válido até</th><th></th>
+        </tr>
       </thead>
       <tbody id="tbodyMensais"></tbody>
     </table>
@@ -506,9 +521,10 @@
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Valor atual (faltas)</div>
           <input id="modalContadorValor" type="number" min="0" />
         </div>
-        <div style="display:flex;flex-direction:column;justify-content:flex-end">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Jogos (calculado)</div>
-          <span id="modalContadorJogosCalc" style="font-family:var(--mono);font-size:13px;color:var(--amber);padding:8px 0">—</span>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Jogos realizados</div>
+          <input id="modalContadorJogos" type="number" min="1" />
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Calculado: <span id="modalContadorJogosCalc" style="font-family:var(--mono);color:var(--amber)">—</span></div>
         </div>
       </div>
     </div>
@@ -771,36 +787,48 @@
   };
 
   // ── Mensais ───────────────────────────────────────────────────────────────
-  const statusMensalLabel = { aguardando:'⏳ Aguardando', aprovado:'✅ Aprovado', inativo:'⛔ Inativo' };
-  const statusMensalCls   = { aguardando:'espera', aprovado:'sim', inativo:'nao' };
+  const statusMensalLabel = { aguardando:'⏳ Aguardando', aprovado:'✅ Aprovado', inativo:'⛔ Inativo', revogado:'🚫 Revogado' };
+  const statusMensalCls   = { aguardando:'espera', aprovado:'sim', inativo:'nao', revogado:'nao' };
 
   async function loadMensais() {
     try {
       const mensais = await api('/api/mensais');
       $('tbodyMensais').innerHTML = mensais.length
-        ? mensais.map((m,i)=>`<tr>
-            <td style="color:var(--muted)">${i+1}</td>
-            <td>${m.nome}</td>
-            <td style="font-family:var(--mono);font-size:12px">${m.telefone}</td>
-            <td style="color:var(--muted);font-size:12px;max-width:120px">${m.obs||'–'}</td>
-            <td><span class="badge ${statusMensalCls[m.statusCadastro]||'pendente'}">${statusMensalLabel[m.statusCadastro]||m.statusCadastro}</span></td>
-            <td style="color:var(--muted);font-size:12px">${m.aprovadoEm?new Date(m.aprovadoEm).toLocaleDateString('pt-BR'):'–'}</td>
-            <td style="white-space:nowrap">
-              ${m.statusCadastro==='aguardando'?`<button class="btn-green btn-sm" onclick="aprovarMensal('${m.id}','${m.nome}')">✅ Aprovar</button>`:''}
-              ${m.statusCadastro==='aprovado'?`<button class="btn-amber btn-sm" onclick="revogarMensal('${m.id}','${m.nome}')">↩ Revogar</button>`:''}
-              <button class="btn-ghost btn-sm" onclick="editMensal('${m.id}','${m.nome}','${m.obs||''}')">✏️</button>
-              <button class="btn-ghost btn-sm" onclick="deleteMensal('${m.id}','${m.nome}')">🗑</button>
-            </td>
-          </tr>`).join('')
-        : '<tr><td colspan="7" class="empty">Nenhum jogador no cadastro de mensais.</td></tr>';
+        ? mensais.map((m,i)=>{
+            const validadeStr = m.validade ? new Date(m.validade).toLocaleDateString('pt-BR') : '–';
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            const vencido = m.validade && new Date(m.validade) < hoje;
+            const validadeTd = m.validade
+              ? `<span style="color:${vencido?'var(--red)':'var(--green)'};font-size:12px">${validadeStr}${vencido?' ⚠️':''}</span>`
+              : `<span style="color:var(--muted);font-size:12px">–</span>`;
+            const podeAprovar = m.statusCadastro === 'aguardando' || m.statusCadastro === 'revogado' || m.statusCadastro === 'inativo';
+            const podeRevogar = m.statusCadastro === 'aprovado';
+            return `<tr>
+              <td><input type="checkbox" class="chkMensais" value="${m.id}" onchange="updateBulkBarMensais()"/></td>
+              <td style="color:var(--muted)">${i+1}</td>
+              <td>${m.nome}</td>
+              <td style="font-family:var(--mono);font-size:12px">${m.telefone}</td>
+              <td style="color:var(--muted);font-size:12px;max-width:120px">${m.obs||'–'}</td>
+              <td><span class="badge ${statusMensalCls[m.statusCadastro]||'pendente'}">${statusMensalLabel[m.statusCadastro]||m.statusCadastro}</span></td>
+              <td style="color:var(--muted);font-size:12px">${m.aprovadoEm?new Date(m.aprovadoEm).toLocaleDateString('pt-BR'):'–'}</td>
+              <td>${validadeTd}</td>
+              <td style="white-space:nowrap">
+                ${podeAprovar?`<button class="btn-green btn-sm" onclick="aprovarMensal('${m.id}','${m.nome}')">✅ Aprovar</button>`:''}
+                ${podeRevogar?`<button class="btn-amber btn-sm" onclick="revogarMensal('${m.id}','${m.nome}')">↩ Revogar</button>`:''}
+                <button class="btn-ghost btn-sm" onclick="editMensal('${m.id}','${m.nome}','${m.obs||''}','${m.validade||''}')">✏️</button>
+                <button class="btn-ghost btn-sm" onclick="deleteMensal('${m.id}','${m.nome}')">🗑</button>
+              </td>
+            </tr>`;
+          }).join('')
+        : '<tr><td colspan="9" class="empty">Nenhum jogador no cadastro de mensais.</td></tr>';
     } catch(e){}
   }
 
   $('btnAddMensal').addEventListener('click', () => {
-    const tel=$('inpMensalTel').value.trim(), nome=$('inpMensalNome').value.trim(), obs=$('inpMensalObs').value.trim();
+    const tel=$('inpMensalTel').value.trim(), nome=$('inpMensalNome').value.trim(), obs=$('inpMensalObs').value.trim(), validade=$('inpMensalValidade').value;
     if(!tel||!nome){toast('Telefone e nome são obrigatórios.','err');return;}
-    action(()=>api('/api/mensal',{method:'POST',body:{telefone:tel,nome,obs}}),`${nome} cadastrado!`)
-      .then(()=>{$('inpMensalTel').value='';$('inpMensalNome').value='';$('inpMensalObs').value='';loadMensais();});
+    action(()=>api('/api/mensal',{method:'POST',body:{telefone:tel,nome,obs,validade:validade||undefined}}),`${nome} cadastrado!`)
+      .then(()=>{$('inpMensalTel').value='';$('inpMensalNome').value='';$('inpMensalObs').value='';$('inpMensalValidade').value='';loadMensais();load();});});
   });
 
   window.aprovarMensal = (id,nome) => {
@@ -811,14 +839,66 @@
     if(!confirm(`Revogar aprovação de ${nome}?`)) return;
     action(()=>api(`/api/mensal/${id}/revogar`,{method:'POST'}),`Aprovação de ${nome} revogada.`).then(()=>{loadMensais();load();});
   };
-  window.editMensal = (id,nomeAtual,obsAtual) => {
+  window.editMensal = (id,nomeAtual,obsAtual,validadeAtual) => {
     const nome=prompt('Nome:',nomeAtual); if(nome===null) return;
     const obs=prompt('Obs (pagamento, etc):',obsAtual); if(obs===null) return;
-    action(()=>api(`/api/mensal/${id}`,{method:'PATCH',body:{nome,obs}}),`${nome} atualizado.`).then(loadMensais);
+    const validade=prompt('Data de validade (AAAA-MM-DD), deixe vazio para sem limite:',validadeAtual||''); if(validade===null) return;
+    action(()=>api(`/api/mensal/${id}`,{method:'PATCH',body:{nome,obs,validade:validade||null}}),`${nome} atualizado.`).then(loadMensais);
   };
   window.deleteMensal = (id,nome) => {
     if(!confirm(`Remover ${nome} do cadastro?`)) return;
     action(()=>api(`/api/mensal/${id}`,{method:'DELETE'}),`${nome} removido.`).then(loadMensais);
+  };
+
+  // ── Seleção múltipla de Mensais ───────────────────────────────────────────
+  function selectedMensaisIds() {
+    return [...document.querySelectorAll('.chkMensais:checked')].map(c => c.value);
+  }
+  window.updateBulkBarMensais = () => {
+    const sels = selectedMensaisIds();
+    const bar = $('bulkBarMensais');
+    bar.style.display = sels.length ? 'flex' : 'none';
+    $('bulkCountMensais').textContent = `${sels.length} selecionado(s)`;
+    if ($('chkAllMensais')) $('chkAllMensais').checked = sels.length > 0 && sels.length === document.querySelectorAll('.chkMensais').length;
+  };
+  window.toggleAllMensais = checked => {
+    document.querySelectorAll('.chkMensais').forEach(c => { c.checked = checked; });
+    updateBulkBarMensais();
+  };
+  window.clearSelectionMensais = () => {
+    document.querySelectorAll('.chkMensais').forEach(c => { c.checked = false; });
+    if ($('chkAllMensais')) $('chkAllMensais').checked = false;
+    updateBulkBarMensais();
+  };
+  window.bulkAprovar = async () => {
+    const ids = selectedMensaisIds();
+    if (!ids.length) return;
+    if (!confirm(`Aprovar ${ids.length} mensal(is)?`)) return;
+    try {
+      await Promise.all(ids.map(id => api(`/api/mensal/${id}/aprovar`, { method:'POST' })));
+      toast(`${ids.length} mensal(is) aprovado(s).`, 'ok');
+      clearSelectionMensais(); loadMensais(); load();
+    } catch(e) { toast('Erro: ' + e.message, 'err'); }
+  };
+  window.bulkRevogar = async () => {
+    const ids = selectedMensaisIds();
+    if (!ids.length) return;
+    if (!confirm(`Revogar ${ids.length} mensal(is)?`)) return;
+    try {
+      await Promise.all(ids.map(id => api(`/api/mensal/${id}/revogar`, { method:'POST' })));
+      toast(`${ids.length} mensal(is) revogado(s).`, 'ok');
+      clearSelectionMensais(); loadMensais(); load();
+    } catch(e) { toast('Erro: ' + e.message, 'err'); }
+  };
+  window.bulkDeleteMensais = async () => {
+    const ids = selectedMensaisIds();
+    if (!ids.length) return;
+    if (!confirm(`Remover ${ids.length} mensal(is) do cadastro? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await Promise.all(ids.map(id => api(`/api/mensal/${id}`, { method:'DELETE' })));
+      toast(`${ids.length} mensal(is) removido(s).`, 'ok');
+      clearSelectionMensais(); loadMensais(); load();
+    } catch(e) { toast('Erro: ' + e.message, 'err'); }
   };
 
   // ── Comandos personalizados ───────────────────────────────────────────────
@@ -896,6 +976,7 @@
         $('modalContadorJogos').value = c.contadorJogos ?? 1;
         $('modalContadorNome').value  = c.contadorConfig?.nome || '';
         $('modalContadorCiclo').value = c.contadorConfig?.ciclo ?? 12;
+        recalcModalJogos();
       }
     }
 
@@ -914,7 +995,9 @@
     if (c.tipo === 'contador') {
       const novoValor = Number($('modalContadorValor')?.value ?? c.contadorValor);
       const novoCiclo = Number($('modalContadorCiclo')?.value ?? c.contadorConfig?.ciclo ?? 12);
-      const novoJogos = Math.floor((novoValor > 0 ? novoValor - 1 : 0) / novoCiclo) + 1;
+      const jogosCalc = novoCiclo > 0 ? Math.floor((novoValor > 0 ? novoValor - 1 : 0) / novoCiclo) + 1 : 1;
+      const jogosInput = $('modalContadorJogos')?.value;
+      const novoJogos = jogosInput !== '' && !isNaN(Number(jogosInput)) ? Number(jogosInput) : jogosCalc;
       body = {
         permissao, escopo,
         contadorValor: novoValor,
@@ -943,6 +1026,9 @@
     const jogos = ciclo > 0 ? Math.floor((val > 0 ? val - 1 : 0) / ciclo) + 1 : 1;
     const el = $('modalContadorJogosCalc');
     if (el) el.textContent = `${jogos} jogo(s)`;
+    // Atualiza o campo de jogos com o valor calculado
+    const jogosEl = $('modalContadorJogos');
+    if (jogosEl && document.activeElement !== jogosEl) jogosEl.value = jogos;
   }
   document.addEventListener('input', e => {
     if (e.target.id === 'modalContadorValor' || e.target.id === 'modalContadorCiclo') recalcModalJogos();
