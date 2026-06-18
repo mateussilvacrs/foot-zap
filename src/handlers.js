@@ -54,32 +54,40 @@ function formatLista(db) {
   ].join('\n');
 }
 
-function formatMensais(db) {
+function formatMensais(db, mostrarValidade = true) {
   const mensais = db.getMensais();
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
 
   const aprovados = mensais.filter(m => m.statusCadastro === 'aprovado');
   const pendentes = mensais.filter(m => m.statusCadastro === 'aguardando');
 
-  // Aprovados com validade vencida são destacados
-  const aprovadosAtivos   = aprovados.filter(m => !m.validade || new Date(m.validade) >= hoje);
-  const aprovadosVencidos = aprovados.filter(m => m.validade && new Date(m.validade) < hoje);
+  // Aprovados com validade vencida são destacados (só relevante quando mostrando validade)
+  const aprovadosAtivos   = mostrarValidade
+    ? aprovados.filter(m => !m.validade || new Date(m.validade) >= hoje)
+    : aprovados;
+  const aprovadosVencidos = mostrarValidade
+    ? aprovados.filter(m => m.validade && new Date(m.validade) < hoje)
+    : [];
 
-  const linhas = ['💳 MENSALISTAS — STATUS DE PAGAMENTO', ''];
+  const linhas = ['💳 MENSALISTAS', ''];
 
   if (aprovadosAtivos.length) {
     linhas.push(`✅ Pagos e ativos (${aprovadosAtivos.length}):`);
     aprovadosAtivos.forEach((m, i) => {
-      const val = m.validade ? ` (válido até ${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')})` : '';
+      const val = mostrarValidade && m.validade
+        ? ` (válido até ${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')})`
+        : '';
       linhas.push(`${i + 1}. ${m.nome}${val}`);
     });
     linhas.push('');
   }
 
-  if (aprovadosVencidos.length) {
+  if (mostrarValidade && aprovadosVencidos.length) {
     linhas.push(`⚠️ Mensalidade vencida (${aprovadosVencidos.length}):`);
     aprovadosVencidos.forEach((m, i) => {
-      const val = m.validade ? ` (venceu em ${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')})` : '';
+      const val = m.validade
+        ? ` (venceu em ${new Date(m.validade + 'T12:00:00').toLocaleDateString('pt-BR')})`
+        : '';
       linhas.push(`${i + 1}. ${m.nome}${val}`);
     });
     linhas.push('');
@@ -133,7 +141,8 @@ function mensagemAjuda(isAdmin = false) {
       '/admin lembrar',
       '/admin add-mensalista <telefone> <nome>',
       '/admin rm-mensalista <telefone>',
-      '/mensais              – Ver status de pagamentos'
+      '/mensais              – Ver status de pagamentos (com validade)',
+      '/mensais1             – Ver lista de mensalistas (sem validade)'
     );
   }
 
@@ -239,7 +248,11 @@ async function handleCommand(context, services) {
   }
   if (lower === '/mensais') {
     if (!isAdmin) return 'Comando restrito aos administradores.';
-    return formatMensais(db);
+    return formatMensais(db, true);
+  }
+  if (lower === '/mensais1') {
+    if (!isAdmin) return 'Comando restrito aos administradores.';
+    return formatMensais(db, false);
   }
   if (lower === '/lista') return formatLista(db);
 
