@@ -206,6 +206,10 @@ app.post('/api/vagas', authMiddleware, (req, res) => {
   if (!db.getState().configuracoes) db.getState().configuracoes = {};
   db.getState().configuracoes.totalVagas = Number(req.body.totalVagas);
   db.save();
+  
+  // Recalcula e promove avulsos automaticamente com o novo número de vagas
+  db.liberarAvulsos(); 
+  
   res.json({ ok: true });
 });
 

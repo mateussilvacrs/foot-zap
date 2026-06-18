@@ -134,20 +134,22 @@ class Database {
    * Atualiza status via voto na enquete (chamado pelo webhook do poll).
    * Aceita 'sim' | 'nao' | 'pendente'.
    */
-  updatePlayerStatus(telefone, status) {
+updatePlayerStatus(telefone, status) {
     const tel = onlyDigits(telefone);
     const p = this.state.mensalistas.find(m => m.telefone === tel);
     if (p) {
       p.status = status;
       this.save();
+      
+      // Promove a fila se o status for alterado para 'nao'
+      if (status === 'nao') {
+        this.liberarAvulsos(); 
+      }
       return true;
     }
     return false;
   }
 
-  /**
-   * Confirmação via comando de texto /confirmar sim|nao.
-   */
   confirmarMensalista(telefone, nome, status) {
     const tel = onlyDigits(telefone);
     const p = this.state.mensalistas.find(m => m.telefone === tel);
@@ -155,6 +157,11 @@ class Database {
     p.status = status;
     if (nome) p.nome = nome;
     this.save();
+    
+    // Promove a fila se o status for alterado para 'nao'
+    if (status === 'nao') {
+      this.liberarAvulsos();
+    }
     return p;
   }
 
