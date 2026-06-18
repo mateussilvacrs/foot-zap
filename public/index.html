@@ -310,8 +310,12 @@
   <div class="panel">
     <h2>Mensagem no Grupo</h2>
     <textarea id="mensagem" placeholder="Escreva uma mensagem para enviar ao grupo…"></textarea>
-    <div style="margin-top:10px">
+    <div style="margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <button class="btn-green" id="btnSendMsg">Enviar mensagem</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--muted)">
+        <input type="checkbox" id="chkMencionarTodos" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)" />
+        @todos (mencionar todos do grupo)
+      </label>
     </div>
   </div>
 
@@ -363,6 +367,26 @@
       <input id="inpVagas" type="number" min="1" max="200" placeholder="Total de vagas" style="flex:1"/>
       <button class="btn-ghost" id="btnSalvarVagas">Salvar</button>
     </div>
+  </div>
+
+  <!-- Admins -->
+  <div class="panel" style="max-width:640px">
+    <h2>👑 Administradores</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
+      Admins podem usar os comandos <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/admin</code> no privado do bot.
+      Ao adicionar, o jogador recebe uma notificação automática no WhatsApp.
+    </p>
+    <div class="form-row">
+      <input id="inpAdminTel"  placeholder="5511999999999" style="flex:1.2"/>
+      <input id="inpAdminNome" placeholder="Nome (opcional)" style="flex:2"/>
+      <button class="btn-purple" id="btnAddAdmin" style="flex-shrink:0">+ Adicionar Admin</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Telefone</th><th>Nome</th><th>Adicionado em</th><th></th></tr>
+      </thead>
+      <tbody id="tbodyAdmins"></tbody>
+    </table>
   </div>
 
   <!-- Comandos personalizados -->
@@ -661,12 +685,55 @@
 
   $('btnSendMsg').addEventListener('click', () => {
     const msg = $('mensagem').value.trim();
+    const mencionar = $('chkMencionarTodos').checked;
     if (!msg) { toast('Escreva uma mensagem.', 'err'); return; }
     action(
-      () => api('/api/acao/mensagem', { method: 'POST', body: { mensagem: msg } }),
-      'Mensagem enviada no grupo!'
-    ).then(() => { $('mensagem').value = ''; });
+      () => api('/api/acao/mensagem', { method: 'POST', body: { mensagem: msg, mencionar_todos: mencionar } }),
+      mencionar ? 'Mensagem com @todos enviada!' : 'Mensagem enviada no grupo!'
+    ).then(() => { $('mensagem').value = ''; $('chkMencionarTodos').checked = false; });
   });
+
+  // ── Admins ─────────────────────────────────────────────────────────────────
+
+  async function loadAdmins() {
+    try {
+      const admins = await api('/api/admins');
+      $('tbodyAdmins').innerHTML = admins.length
+        ? admins.map((a, i) => `
+            <tr>
+              <td style="color:var(--muted)">${i + 1}</td>
+              <td style="font-family:var(--mono);font-size:12px">${a.telefone}</td>
+              <td>${a.nome || '<span style="color:var(--muted)">–</span>'}</td>
+              <td style="color:var(--muted);font-size:12px">${a.criadoEm ? new Date(a.criadoEm).toLocaleDateString('pt-BR') : '–'}</td>
+              <td>
+                <button class="btn-ghost btn-sm" title="Remover admin" onclick="removeAdmin('${a.telefone}','${a.nome || a.telefone}')">🗑</button>
+              </td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" class="empty">Nenhum admin cadastrado aqui. Os do .env continuam valendo.</td></tr>';
+    } catch (e) { /* silencia se não autenticado */ }
+  }
+
+  $('btnAddAdmin').addEventListener('click', () => {
+    const tel  = $('inpAdminTel').value.trim();
+    const nome = $('inpAdminNome').value.trim();
+    if (!tel) { toast('Informe o telefone do admin.', 'err'); return; }
+    action(
+      () => api('/api/admin', { method: 'POST', body: { telefone: tel, nome } }),
+      `${nome || tel} adicionado como admin! Notificação enviada.`
+    ).then(() => {
+      $('inpAdminTel').value = '';
+      $('inpAdminNome').value = '';
+      loadAdmins();
+    });
+  });
+
+  window.removeAdmin = (tel, nome) => {
+    if (!confirm(`Remover ${nome} dos admins? Ele será notificado.`)) return;
+    action(
+      () => api(`/api/admin/${tel}`, { method: 'DELETE' }),
+      `${nome} removido dos admins.`
+    ).then(loadAdmins);
+  };
 
   // ── Comandos personalizados ─────────────────────────────────────────────────
 
@@ -810,8 +877,10 @@
 
   load();
   loadComandos();
+  loadAdmins();
   setInterval(load, 10000);
   setInterval(loadComandos, 15000);
+  setInterval(loadAdmins, 30000);
 </script>
 </body>
 <footer>0.02</footer>

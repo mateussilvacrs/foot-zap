@@ -24,14 +24,13 @@ class Database {
           configuracoes: { totalVagas: 25, valorAvulso: 30 },
           mensalistas: [],
           avulsos: [],
-          comandos: []   // comandos personalizados criados pelo admin
+          comandos: [],   // comandos personalizados criados pelo admin
+          admins: []      // admins dinâmicos além dos do .env
         };
 
-    // Garante que versões antigas do estado.json tenham o campo
-    if (!this.state.comandos) {
-      this.state.comandos = [];
-      this.save();
-    }
+    // Garante que versões antigas do estado.json tenham os campos
+    if (!this.state.comandos) { this.state.comandos = []; this.save(); }
+    if (!this.state.admins)   { this.state.admins = [];   this.save(); }
   }
 
   save() {
@@ -309,6 +308,36 @@ class Database {
     this.state.comandos = this.state.comandos.filter(c => c.id !== id);
     this.save();
     return this.state.comandos.length < antes;
+  }
+
+  // ─── Admins dinâmicos ─────────────────────────────────────────────────────
+
+  /**
+   * Retorna todos os admins cadastrados no banco.
+   * Os do .env (ADMIN_NUMBERS) são gerenciados separadamente pelo handlers.
+   */
+  getAdmins() {
+    return this.state.admins || [];
+  }
+
+  addAdmin(telefone, nome) {
+    if (!this.state.admins) this.state.admins = [];
+    const tel = onlyDigits(telefone);
+    if (!tel) throw new Error('Telefone inválido.');
+    const existe = this.state.admins.find(a => a.telefone === tel);
+    if (existe) throw new Error(`${tel} já é administrador.`);
+    const admin = { telefone: tel, nome: (nome || '').trim(), criadoEm: new Date().toISOString() };
+    this.state.admins.push(admin);
+    this.save();
+    return admin;
+  }
+
+  removeAdmin(telefone) {
+    const tel = onlyDigits(telefone);
+    const antes = (this.state.admins || []).length;
+    this.state.admins = (this.state.admins || []).filter(a => a.telefone !== tel);
+    this.save();
+    return this.state.admins.length < antes;
   }
 
   findComando(gatilho) {

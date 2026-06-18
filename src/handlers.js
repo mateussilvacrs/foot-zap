@@ -1,10 +1,12 @@
 const { onlyDigits } = require('./database');
 
-function adminNumbers() {
-  return String(process.env.ADMIN_NUMBERS || '')
+function adminNumbers(db) {
+  const fromEnv = String(process.env.ADMIN_NUMBERS || '')
     .split(',')
     .map(onlyDigits)
     .filter(Boolean);
+  const fromDb = db ? (db.getAdmins() || []).map(a => a.telefone) : [];
+  return [...new Set([...fromEnv, ...fromDb])];
 }
 
 function numberedList(items) {
@@ -109,7 +111,7 @@ async function enviarLembretesPendentes(db, whatsapp) {
 
 async function handleAdmin(command, context, services) {
   const { db, whatsapp, sheets } = services;
-  const isAdmin = adminNumbers().includes(onlyDigits(context.telefone));
+  const isAdmin = adminNumbers(db).includes(onlyDigits(context.telefone));
   if (!isAdmin) return 'Comando restrito aos administradores.';
   if (context.isGroup) return 'Por segurança, comandos admin devem ser enviados no privado do bot.';
 
@@ -177,7 +179,7 @@ async function handleCommand(context, services) {
   const { db, sheets, whatsapp } = services;
   const text = String(context.text || '').trim();
   const lower = text.toLowerCase();
-  const isAdmin = adminNumbers().includes(onlyDigits(context.telefone));
+  const isAdmin = adminNumbers(db).includes(onlyDigits(context.telefone));
 
   if (!lower.startsWith('/')) return null;
 
