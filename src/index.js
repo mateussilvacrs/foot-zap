@@ -408,7 +408,7 @@ app.post('/api/mensal/:id/aprovar', authMiddleware, async (req, res) => {
     // Notifica o jogador
     await whatsapp.sendPrivateMessage(
       mensal.telefone,
-      `✅ Olá, ${mensal.nome}! Seu pagamento foi confirmado e você está na lista de mensalistas desta semana.\n\nConfirme sua presença quando a enquete for aberta! ⚽`
+      `✅ Olá, ${mensal.nome}! Seu pagamento foi confirmado e você está na lista de mensalistas até o dia 01/07 desta semana.\n\nConfirme sua presença quando a enquete for aberta! ⚽`
     ).catch(e => db.log('Erro notif aprovação', { error: e.message }));
     res.json({ ok: true, mensal, jaEraMensalista });
   } catch (e) { res.status(400).json({ error: e.message }); }
