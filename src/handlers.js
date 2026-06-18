@@ -50,11 +50,11 @@ function formatLista(db) {
     `Avulsos (${r.avulsos.length}):`,
     numberedList(r.avulsos),
     '',
-    `Vagas restantes: ${r.vagasRestantes}`
+    `Vagas restantes: ${r.vagasRestantes}`,
 
         `Ordem da Lista de espera (${r.espera.length}):`,
     numberedList(r.espera),
-    
+    '',
   ].join('\n');
 }
 
