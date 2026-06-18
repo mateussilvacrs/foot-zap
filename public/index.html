@@ -828,7 +828,7 @@
     const tel=$('inpMensalTel').value.trim(), nome=$('inpMensalNome').value.trim(), obs=$('inpMensalObs').value.trim(), validade=$('inpMensalValidade').value;
     if(!tel||!nome){toast('Telefone e nome são obrigatórios.','err');return;}
     action(()=>api('/api/mensal',{method:'POST',body:{telefone:tel,nome,obs,validade:validade||undefined}}),`${nome} cadastrado!`)
-      .then(()=>{$('inpMensalTel').value='';$('inpMensalNome').value='';$('inpMensalObs').value='';$('inpMensalValidade').value='';loadMensais();load();});});
+      .then(()=>{$('inpMensalTel').value='';$('inpMensalNome').value='';$('inpMensalObs').value='';$('inpMensalValidade').value='';loadMensais();load();});
   });
 
   window.aprovarMensal = (id,nome) => {
