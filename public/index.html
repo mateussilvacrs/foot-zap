@@ -323,6 +323,16 @@
     </div>
   </div>
 
+  <!-- Relatórios -->
+  <div class="panel">
+    <h2>📊 Relatórios</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn-purple" id="btnMensaisCompleto">💳 /mensais — Com validade</button>
+      <button class="btn-ghost"  id="btnMensaisSemValidade">📋 /mensais1 — Sem validade</button>
+    </div>
+    <pre id="relatorioOutput" style="display:none;margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:var(--ink)"></pre>
+  </div>
+
   <!-- Listas -->
   <div class="columns">
 
@@ -728,6 +738,51 @@
     if(!confirm('Fechar lista e enviar resumo final?')) return;
     action(()=>api('/api/acao/fechar',{method:'POST'}),'Rodada fechada e resumo enviado!');
   });
+
+  // ── Relatórios ────────────────────────────────────────────────────────────
+  async function mostrarRelatorio(comValidade) {
+    const out = $('relatorioOutput');
+    out.style.display = 'block';
+    out.textContent = 'Carregando…';
+    try {
+      const data = await api('/api/mensais');
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      const aprovados = data.filter(m => m.statusCadastro === 'aprovado');
+      const pendentes = data.filter(m => m.statusCadastro === 'aguardando');
+      const aprovadosAtivos   = comValidade ? aprovados.filter(m => !m.validade || new Date(m.validade) >= hoje) : aprovados;
+      const aprovadosVencidos = comValidade ? aprovados.filter(m => m.validade && new Date(m.validade) < hoje) : [];
+      const linhas = [comValidade ? '💳 MENSALISTAS — STATUS DE PAGAMENTO' : '💳 MENSALISTAS', ''];
+      if (aprovadosAtivos.length) {
+        linhas.push(`✅ Pagos e ativos (${aprovadosAtivos.length}):`);
+        aprovadosAtivos.forEach((m,i) => {
+          const val = comValidade && m.validade ? ` (válido até ${new Date(m.validade+'T12:00:00').toLocaleDateString('pt-BR')})` : '';
+          linhas.push(`${i+1}. ${m.nome}${val}`);
+        });
+        linhas.push('');
+      }
+      if (comValidade && aprovadosVencidos.length) {
+        linhas.push(`⚠️ Mensalidade vencida (${aprovadosVencidos.length}):`);
+        aprovadosVencidos.forEach((m,i) => {
+          const val = m.validade ? ` (venceu em ${new Date(m.validade+'T12:00:00').toLocaleDateString('pt-BR')})` : '';
+          linhas.push(`${i+1}. ${m.nome}${val}`);
+        });
+        linhas.push('');
+      }
+      if (pendentes.length) {
+        linhas.push(`⏳ Aguardando pagamento (${pendentes.length}):`);
+        pendentes.forEach((m,i) => linhas.push(`${i+1}. ${m.nome}`));
+        linhas.push('');
+      }
+      if (!aprovadosAtivos.length && !aprovadosVencidos.length && !pendentes.length) {
+        linhas.push('Nenhum mensalista cadastrado.');
+      }
+      out.textContent = linhas.join('\n').trim();
+    } catch(e) {
+      out.textContent = 'Erro ao carregar dados.';
+    }
+  }
+  $('btnMensaisCompleto').addEventListener('click', () => mostrarRelatorio(true));
+  $('btnMensaisSemValidade').addEventListener('click', () => mostrarRelatorio(false));
 
   // ── Formulários ───────────────────────────────────────────────────────────
   $('btnAddMens').addEventListener('click', () => {
