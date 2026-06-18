@@ -247,11 +247,17 @@ async function handleCommand(context, services) {
     return base + '\n\nComandos extras:\n' + extras;
   }
   if (lower === '/mensais') {
-    if (!isAdmin) return 'Comando restrito aos administradores.';
+    if (!isAdmin) {
+      // Debug: mostra qual número chegou vs. admins configurados
+      const admins = adminNumbers(db);
+      const tel = onlyDigits(context.telefone);
+      console.warn('[DEBUG /mensais] telefone recebido:', tel, '| admins:', admins);
+      return 'Comando restrito aos administradores.';
+    }
     return formatMensais(db, true);
   }
   if (lower === '/mensais1') {
-    if (!isAdmin) return 'Comando restrito aos administradores.';
+    // Lista sem validade: pública, pode ser usada no grupo por qualquer um
     return formatMensais(db, false);
   }
   if (lower === '/lista') return formatLista(db);
