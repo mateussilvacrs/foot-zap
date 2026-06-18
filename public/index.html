@@ -334,9 +334,18 @@
         <input id="inpNome" placeholder="Nome" style="flex:2"/>
         <button class="btn-green" id="btnAddMens" style="flex-shrink:0">+ Adicionar</button>
       </div>
+      <!-- Barra de ações em massa -->
+      <div id="bulkBar" style="display:none;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        <span id="bulkCount" style="font-size:12px;color:var(--muted);flex:1">0 selecionados</span>
+        <button class="btn-green btn-sm"  onclick="bulkStatus('sim')">✅ Confirmar</button>
+        <button class="btn-red btn-sm"    onclick="bulkStatus('nao')">❌ Ausente</button>
+        <button class="btn-ghost btn-sm"  onclick="bulkStatus('pendente')">⏳ Pendente</button>
+        <button class="btn-ghost btn-sm"  onclick="clearSelection()" style="margin-left:4px">✕</button>
+      </div>
       <table>
         <thead>
           <tr>
+            <th><input type="checkbox" id="chkAll" title="Selecionar todos" onchange="toggleAll(this.checked)"/></th>
             <th>#</th><th>Nome</th><th>Telefone</th><th>Status</th><th></th>
           </tr>
         </thead>
@@ -479,6 +488,30 @@
       <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Resposta / Template</div>
       <textarea id="modalCmdResposta" style="min-height:72px;width:100%"></textarea>
     </div>
+    <!-- Campos extras só para contadores -->
+    <div id="modalContadorFields" style="display:none;background:var(--surface2);border-radius:8px;padding:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:10px">🔢 Configuração do Contador</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Nome exibido</div>
+          <input id="modalContadorNome" placeholder="ex: Nauan" />
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Faltas por jogo (ciclo)</div>
+          <input id="modalContadorCiclo" type="number" min="1" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Valor atual (faltas)</div>
+          <input id="modalContadorValor" type="number" min="0" />
+        </div>
+        <div style="display:flex;flex-direction:column;justify-content:flex-end">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Jogos (calculado)</div>
+          <span id="modalContadorJogosCalc" style="font-family:var(--mono);font-size:13px;color:var(--amber);padding:8px 0">—</span>
+        </div>
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px">👤 Quem pode usar</div>
@@ -574,17 +607,19 @@
 
     // Tabela mensalistas
     $('tbodyMens').innerHTML = (data.mensalistas||[]).length
-      ? data.mensalistas.map((j,i) => `<tr>
+      ? data.mensalistas.map((j,i) => `<tr data-tel="${j.telefone}">
+          <td><input type="checkbox" class="chkMens" value="${j.telefone}" onchange="updateBulkBar()"/></td>
           <td style="color:var(--muted)">${i+1}</td>
           <td>${j.nome}</td>
           <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
           <td>${badge(j.status||'pendente')}</td>
           <td>
-            <button class="btn-ghost btn-sm" onclick="setStatus('${j.telefone}','sim')">✅</button>
-            <button class="btn-ghost btn-sm" onclick="setStatus('${j.telefone}','nao')">❌</button>
-            <button class="btn-ghost btn-sm" onclick="removeMens('${j.telefone}')">🗑</button>
+            <button class="btn-ghost btn-sm" title="Confirmar"  onclick="setStatus('${j.telefone}','sim')">✅</button>
+            <button class="btn-ghost btn-sm" title="Ausente"    onclick="setStatus('${j.telefone}','nao')">❌</button>
+            <button class="btn-ghost btn-sm" title="Pendente"   onclick="setStatus('${j.telefone}','pendente')">⏳</button>
+            <button class="btn-ghost btn-sm" title="Remover"    onclick="removeMens('${j.telefone}')">🗑</button>
           </td></tr>`).join('')
-      : '<tr><td colspan="5" class="empty">Nenhum mensalista cadastrado.</td></tr>';
+      : '<tr><td colspan="6" class="empty">Nenhum mensalista cadastrado.</td></tr>';
 
     // Tabela avulsos
     $('tbodyAvulsos').innerHTML = (data.avulsos||[]).length
@@ -607,6 +642,43 @@
   window.desistirAvulso = (tel, nome) => {
     if(!confirm(`Registrar desistência de ${nome}?`)) return;
     action(() => api(`/api/avulso/${tel}/desistir`,{method:'POST'}), `Desistência de ${nome} registrada.`);
+  };
+
+  // ── Seleção múltipla de mensalistas ───────────────────────────────────────
+  function selectedTels() {
+    return [...document.querySelectorAll('.chkMens:checked')].map(c => c.value);
+  }
+
+  window.updateBulkBar = () => {
+    const sels = selectedTels();
+    const bar = $('bulkBar');
+    bar.style.display = sels.length ? 'flex' : 'none';
+    $('bulkCount').textContent = `${sels.length} selecionado(s)`;
+    if ($('chkAll')) $('chkAll').checked = sels.length === document.querySelectorAll('.chkMens').length;
+  };
+
+  window.toggleAll = checked => {
+    document.querySelectorAll('.chkMens').forEach(c => { c.checked = checked; });
+    updateBulkBar();
+  };
+
+  window.clearSelection = () => {
+    document.querySelectorAll('.chkMens').forEach(c => { c.checked = false; });
+    if ($('chkAll')) $('chkAll').checked = false;
+    updateBulkBar();
+  };
+
+  window.bulkStatus = async status => {
+    const tels = selectedTels();
+    if (!tels.length) return;
+    const label = { sim: 'confirmados', nao: 'ausentes', pendente: 'pendentes' }[status] || status;
+    if (!confirm(`Marcar ${tels.length} mensalista(s) como ${label}?`)) return;
+    try {
+      await Promise.all(tels.map(tel => api(`/api/player/${tel}/status`, { method:'PATCH', body:{ status } })));
+      toast(`${tels.length} jogador(es) marcados como ${label}.`, 'ok');
+      clearSelection();
+      load();
+    } catch(e) { toast('Erro: ' + e.message, 'err'); }
   };
 
   // ── Fluxo ─────────────────────────────────────────────────────────────────
@@ -813,7 +885,21 @@
     $('modalCmdResposta').value = c.tipo==='contador' ? (c.contadorConfig?.template||'{valor}') : (c.resposta||'');
     $('modalCmdPermissao').value = c.permissao||'todos';
     $('modalCmdEscopo').value    = c.escopo||'ambos';
-    $('modalCmd').style.display  = 'flex';
+
+    // Mostra/oculta campos de contador
+    const isContador = c.tipo === 'contador';
+    const contadorFields = $('modalContadorFields');
+    if (contadorFields) {
+      contadorFields.style.display = isContador ? 'block' : 'none';
+      if (isContador) {
+        $('modalContadorValor').value = c.contadorValor ?? 0;
+        $('modalContadorJogos').value = c.contadorJogos ?? 1;
+        $('modalContadorNome').value  = c.contadorConfig?.nome || '';
+        $('modalContadorCiclo').value = c.contadorConfig?.ciclo ?? 12;
+      }
+    }
+
+    $('modalCmd').style.display = 'flex';
   };
   $('modalCmdCancelar').addEventListener('click', ()=>{ $('modalCmd').style.display='none'; _editCmdId=null; });
   $('modalCmdSalvar').addEventListener('click', async ()=>{
@@ -823,14 +909,44 @@
     const resposta   = $('modalCmdResposta').value;
     const permissao  = $('modalCmdPermissao').value;
     const escopo     = $('modalCmdEscopo').value;
-    const body = c.tipo==='contador'
-      ? { permissao, escopo, contadorConfig:{...c.contadorConfig,template:resposta} }
-      : { permissao, escopo, resposta };
+
+    let body;
+    if (c.tipo === 'contador') {
+      const novoValor = Number($('modalContadorValor')?.value ?? c.contadorValor);
+      const novoCiclo = Number($('modalContadorCiclo')?.value ?? c.contadorConfig?.ciclo ?? 12);
+      const novoJogos = Math.floor((novoValor > 0 ? novoValor - 1 : 0) / novoCiclo) + 1;
+      body = {
+        permissao, escopo,
+        contadorValor: novoValor,
+        contadorJogos: novoJogos,
+        contadorConfig: {
+          ...c.contadorConfig,
+          template: resposta,
+          nome: $('modalContadorNome')?.value || c.contadorConfig?.nome || '',
+          ciclo: novoCiclo
+        }
+      };
+    } else {
+      body = { permissao, escopo, resposta };
+    }
+
     action(()=>api(`/api/comandos/${_editCmdId}`,{method:'PATCH',body}),'Comando atualizado.').then(()=>{
       $('modalCmd').style.display='none'; _editCmdId=null; loadComandos();
     });
   });
   $('modalCmd').addEventListener('click', e=>{ if(e.target===$('modalCmd')){$('modalCmd').style.display='none';_editCmdId=null;} });
+
+  // Recalcula jogos ao vivo quando edita faltas ou ciclo no modal
+  function recalcModalJogos() {
+    const val   = Number($('modalContadorValor')?.value || 0);
+    const ciclo = Number($('modalContadorCiclo')?.value || 12);
+    const jogos = ciclo > 0 ? Math.floor((val > 0 ? val - 1 : 0) / ciclo) + 1 : 1;
+    const el = $('modalContadorJogosCalc');
+    if (el) el.textContent = `${jogos} jogo(s)`;
+  }
+  document.addEventListener('input', e => {
+    if (e.target.id === 'modalContadorValor' || e.target.id === 'modalContadorCiclo') recalcModalJogos();
+  });
 
   function cmdFormData() {
     return { gatilho:$('cmdGatilho').value.trim(), descricao:$('cmdDescricao').value.trim(),
