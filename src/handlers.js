@@ -54,7 +54,7 @@ function formatLista(db) {
 
         `Ordem da Lista de espera (${r.espera.length}):`,
     numberedList(r.espera),
-    '',
+    
   ].join('\n');
 }
 
