@@ -129,6 +129,7 @@ function mensagemAjuda(isAdmin = false) {
     '/confirmar sim  – Confirmar presença (mensalistas)',
     '/confirmar nao  – Registrar ausência (mensalistas)',
     '/querojogar      – Entrar como avulso',
+    '/convidar <Nome> – Adicionar um amigo à lista de avulsos',
     '/desistir        – Desistir (avulsos)',
     '/lista           – Ver lista da rodada',
     '/ajuda           – Ver esta mensagem'
@@ -146,6 +147,7 @@ function mensagemAjuda(isAdmin = false) {
       '/admin lembrar',
       '/admin add-mensalista <telefone> <nome>',
       '/admin rm-mensalista <telefone>',
+      '/remover <Nome>  – Remover avulso da lista',
       '/mensais              – Ver status de pagamentos (com validade)',
       '/mensais1             – Ver lista de mensalistas (sem validade)'
     );
@@ -350,6 +352,57 @@ const { jogador, promovidos } = db.confirmarMensalista(context.telefone, context
     return result.jogador.status === 'confirmado'
       ? `✅ Você entrou na lista de avulsos. Valor: R$ ${valor} ⚽`
       : '⏳ Lista cheia — você entrou na fila de espera.';
+  }
+
+  // /convidar <Nome> — qualquer um pode convidar um amigo para a lista de avulsos
+  if (lower.startsWith('/convidar ')) {
+    if (!db.getState().aberto) return '❌ A lista de avulsos está fechada no momento.';
+
+    const nomeConvidado = text.slice('/convidar '.length).trim();
+    if (!nomeConvidado) return 'Use: /convidar <nome do amigo>';
+
+    // Usa telefone fictício único baseado no nome + quem convidou para evitar duplicatas
+    const telFicticio = `conv_${onlyDigits(context.telefone)}_${nomeConvidado.toLowerCase().replace(/\s+/g,'_').slice(0,20)}`;
+
+    // Verifica duplicata por nome (case insensitive)
+    const jaExiste = db.getState().avulsos.find(
+      a => a.nome.toLowerCase() === nomeConvidado.toLowerCase()
+    );
+    if (jaExiste) {
+      const onde = jaExiste.status === 'espera' ? 'na fila de espera' : 'na lista';
+      return `${nomeConvidado} já está ${onde}.`;
+    }
+
+    const result = db.addAvulso(telFicticio, nomeConvidado, context.nome);
+    const valor  = db.getState().configuracoes.valorAvulso;
+
+    if (result.jogador.status === 'confirmado') {
+      return `✅ ${nomeConvidado} foi adicionado à lista por ${context.nome || 'você'}!\nValor: R$ ${valor} ⚽`;
+    } else {
+      return `⏳ Lista cheia — ${nomeConvidado} entrou na fila de espera (convidado por ${context.nome || 'você'}).`;
+    }
+  }
+
+  // /remover <Nome> — somente admins podem remover avulso por nome
+  if (lower.startsWith('/remover ')) {
+    if (!isAdmin) return 'Comando restrito aos administradores.';
+
+    const nomeRemover = text.slice('/remover '.length).trim();
+    if (!nomeRemover) return 'Use: /remover <nome do avulso>';
+
+    const { removido, jogador, promovido } = db.removeAvulsoPorNome(nomeRemover);
+    if (!removido) return `Não encontrei nenhum avulso com o nome "${nomeRemover}".`;
+
+    let resposta = `✅ ${jogador.nome} foi removido da lista.`;
+    if (promovido) {
+      const valor = db.getState().configuracoes.valorAvulso;
+      resposta += `\n🎉 ${promovido.nome} saiu da fila de espera e está confirmado!`;
+      await whatsapp.sendPrivateMessage(
+        promovido.telefone,
+        `⚽ Boa notícia, ${promovido.nome}! Uma vaga abriu e você saiu da fila de espera.\nVocê está confirmado para o jogo desta semana! Valor: R$ ${valor} ⚽`
+      ).catch(e => db.log('Erro ao notificar promovido', { error: e.message }));
+    }
+    return resposta;
   }
 
   // ── Comandos personalizados criados pelo admin ───────────────────────────

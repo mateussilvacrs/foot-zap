@@ -21,7 +21,7 @@ class Database {
           rodada: new Date().toISOString().slice(0, 10),
           aberto: false,
           pollId: null,
-          configuracoes: { totalVagas: 25, valorAvulso: 30 },
+          configuracoes: { totalVagas: 25, valorAvulso: 20 },
           mensalistas: [],
           avulsos: [],
           comandos: [],   // comandos personalizados criados pelo admin
@@ -58,7 +58,11 @@ class Database {
     const espera      = (this.state.avulsos || []).filter(a => a.status === 'espera');
 
     const totalOcupado = confirmados.length + avulsos.length;
-    const vagasRestantes = Math.max(0, this.state.configuracoes.totalVagas - totalOcupado);
+
+    // Vagas restantes = total - confirmados - pendentes - avulsos confirmados
+    // Pendentes "reservam" vaga até responderem, para não lotar com avulsos
+    const vagasReservadas = confirmados.length + pendentes.length + avulsos.length;
+    const vagasRestantes  = Math.max(0, this.state.configuracoes.totalVagas - vagasReservadas);
 
     return {
       rodada: this.state.rodada,
@@ -170,7 +174,7 @@ confirmarMensalista(telefone, nome, status) {
 
   // ─── Avulsos ──────────────────────────────────────────────────────────────
 
-  addAvulso(telefone, nome) {
+  addAvulso(telefone, nome, convidadoPor) {
     const tel = onlyDigits(telefone);
 
     if (!this.state.aberto) return { motivo: 'fechado' };
@@ -181,15 +185,18 @@ confirmarMensalista(telefone, nome, status) {
     const jaExiste = this.state.avulsos.find(a => a.telefone === tel);
     if (jaExiste) return { repetido: true, jogador: jaExiste };
 
-    const { confirmados } = this.resumo();
-    const avulsosConfirmados = this.state.avulsos.filter(a => a.status === 'confirmado');
-    const totalOcupado = confirmados.length + avulsosConfirmados.length;
-    const vagasRestantes = this.state.configuracoes.totalVagas - totalOcupado;
+    // Vagas = total - confirmados - pendentes - avulsos confirmados
+    const mensalistas       = this.state.mensalistas || [];
+    const confirmadosMens   = mensalistas.filter(m => m.status === 'sim').length;
+    const pendentesMens     = mensalistas.filter(m => m.status === 'pendente').length;
+    const confirmadosAvul   = this.state.avulsos.filter(a => a.status === 'confirmado').length;
+    const vagasRestantes    = this.state.configuracoes.totalVagas - confirmadosMens - pendentesMens - confirmadosAvul;
 
     const jogador = {
       telefone: tel,
       nome: nome?.trim() || 'Sem nome',
-      status: vagasRestantes > 0 ? 'confirmado' : 'espera'
+      status: vagasRestantes > 0 ? 'confirmado' : 'espera',
+      ...(convidadoPor ? { convidadoPor } : {})
     };
 
     this.state.avulsos.push(jogador);
@@ -447,20 +454,46 @@ confirmarMensalista(telefone, nome, status) {
    */
 liberarAvulsos() {
     const { configuracoes, mensalistas, avulsos } = this.state;
-    const confirmadosMensalistas = mensalistas.filter(m => m.status === 'sim').length;
-    let slots = configuracoes.totalVagas - confirmadosMensalistas;
-    const promovidos = []; // Guarda quem saiu da espera
+    const confirmadosMens = mensalistas.filter(m => m.status === 'sim').length;
+    const pendentesMens   = mensalistas.filter(m => m.status === 'pendente').length;
+    // Pendentes ainda reservam vaga — avulsos só preenchem o que sobrou
+    let slots = configuracoes.totalVagas - confirmadosMens - pendentesMens;
+    const promovidos = [];
 
     for (const a of avulsos) {
       if (a.status === 'confirmado') { slots--; continue; }
-      if (a.status === 'espera' && slots > 0) { 
-        a.status = 'confirmado'; 
-        slots--; 
-        promovidos.push(a); // Adiciona na lista de notificação
+      if (a.status === 'espera' && slots > 0) {
+        a.status = 'confirmado';
+        slots--;
+        promovidos.push(a);
       }
     }
     this.save();
     return promovidos;
+  }
+
+  /**
+   * Remove avulso por nome (busca parcial, case-insensitive).
+   * Retorna { removido, jogador, promovido }
+   */
+  removeAvulsoPorNome(nomeParcial) {
+    const busca = nomeParcial.toLowerCase().trim();
+    const idx = this.state.avulsos.findIndex(a => a.nome.toLowerCase().includes(busca));
+    if (idx === -1) return { removido: false };
+
+    const [jogador] = this.state.avulsos.splice(idx, 1);
+    let promovido = null;
+
+    if (jogador.status === 'confirmado') {
+      const proxEspera = this.state.avulsos.find(a => a.status === 'espera');
+      if (proxEspera) {
+        proxEspera.status = 'confirmado';
+        promovido = proxEspera;
+      }
+    }
+
+    this.save();
+    return { removido: true, jogador, promovido };
   }
 }
 
