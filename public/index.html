@@ -218,6 +218,11 @@
     /* ── Misc ── */
     .row-apart { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
     .updated   { font-size: 11px; color: var(--muted); }
+    #diasContainer label:has(input:checked) {
+      background: var(--green-dim) !important;
+      border-color: var(--green) !important;
+      color: #4ade80;
+    }
     .empty     { color: var(--muted); font-size: 13px; padding: 12px 0; }
 
     @media (max-width: 760px) {
@@ -527,19 +532,35 @@
       <!-- Campos recorrente -->
       <div id="camposRecorrente">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Dias da semana</div>
-        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-          ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i) =>
-            `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface);border:1px solid var(--border);padding:4px 8px;border-radius:6px">
-              <input type="checkbox" class="chkDia" value="${i}"/> ${d}
-            </label>`
-          ).join('')}
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap" id="diasContainer">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="0"/> Dom
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="1"/> Seg
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="2"/> Ter
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="3"/> Qua
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="4"/> Qui
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="5"/> Sex
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);padding:5px 10px;border-radius:6px">
+            <input type="checkbox" class="chkDia" value="6"/> Sáb
+          </label>
         </div>
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center">
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;align-items:center">
           <div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Horário</div>
             <input id="agHora" type="time" value="09:00" />
           </div>
-          <div style="font-size:11px;color:var(--muted)">Selecione os dias e horário em que a mensagem será enviada toda semana.</div>
+          <div style="font-size:11px;color:var(--muted);padding-top:18px">Selecione os dias e horário em que a mensagem será enviada toda semana.</div>
         </div>
       </div>
 
@@ -1307,5 +1328,5 @@
   setInterval(loadAgendamentos, 20000);
 </script>
 </body>
-<footer>0.03</footer>
+<footer>0.05</footer>
 </html>
