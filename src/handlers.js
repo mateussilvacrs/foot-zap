@@ -361,8 +361,10 @@ const { jogador, promovidos } = db.confirmarMensalista(context.telefone, context
     const nomeConvidado = text.slice('/convidar '.length).trim();
     if (!nomeConvidado) return 'Use: /convidar <nome do amigo>';
 
-    // Usa telefone fictício único baseado no nome + quem convidou para evitar duplicatas
-    const telFicticio = `conv_${onlyDigits(context.telefone)}_${nomeConvidado.toLowerCase().replace(/\s+/g,'_').slice(0,20)}`;
+    // ID único: prefixo conv_ + quem convidou + nome normalizado
+    // NÃO passa por onlyDigits — o prefixo conv_ sinaliza isso no addAvulso
+    const nomeNorm  = nomeConvidado.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20);
+    const telFicticio = `conv_${onlyDigits(context.telefone)}_${nomeNorm}_${Date.now().toString(36)}`;
 
     // Verifica duplicata por nome (case insensitive)
     const jaExiste = db.getState().avulsos.find(
@@ -374,8 +376,9 @@ const { jogador, promovidos } = db.confirmarMensalista(context.telefone, context
     }
 
     const result = db.addAvulso(telFicticio, nomeConvidado, context.nome);
-    const valor  = db.getState().configuracoes.valorAvulso;
 
+    // addAvulso só retorna motivo:'fechado' se !aberto — já checamos acima
+    const valor = db.getState().configuracoes.valorAvulso;
     if (result.jogador.status === 'confirmado') {
       return `✅ ${nomeConvidado} foi adicionado à lista por ${context.nome || 'você'}!\nValor: R$ ${valor} ⚽`;
     } else {
@@ -383,12 +386,28 @@ const { jogador, promovidos } = db.confirmarMensalista(context.telefone, context
     }
   }
 
-  // /remover <Nome> — somente admins podem remover avulso por nome
+  // /remover <Nome> — admins ou quem convidou podem remover avulso por nome
   if (lower.startsWith('/remover ')) {
-    if (!isAdmin) return 'Comando restrito aos administradores.';
-
     const nomeRemover = text.slice('/remover '.length).trim();
     if (!nomeRemover) return 'Use: /remover <nome do avulso>';
+
+    // Verifica se quem está removendo é o admin ou quem convidou
+    const telSolicitante = onlyDigits(context.telefone);
+    const avulsoAlvo = db.getState().avulsos.find(
+      a => a.nome.toLowerCase().includes(nomeRemover.toLowerCase())
+    );
+
+    if (!avulsoAlvo) return `Não encontrei nenhum avulso com o nome "${nomeRemover}".`;
+
+    const quemConvidou = avulsoAlvo.convidadoPor
+      ? db.getState().avulsos.find(a => a.telefone === avulsoAlvo.telefone)
+      : null;
+
+    // Permite: admin OU a pessoa que convidou
+    const fezOConvite = avulsoAlvo.convidadoPor === (context.nome || '');
+    if (!isAdmin && !fezOConvite) {
+      return `Só quem convidou (${avulsoAlvo.convidadoPor || 'o organizador'}) ou um admin pode remover ${avulsoAlvo.nome}.`;
+    }
 
     const { removido, jogador, promovido } = db.removeAvulsoPorNome(nomeRemover);
     if (!removido) return `Não encontrei nenhum avulso com o nome "${nomeRemover}".`;

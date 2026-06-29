@@ -21,7 +21,7 @@ class Database {
           rodada: new Date().toISOString().slice(0, 10),
           aberto: false,
           pollId: null,
-          configuracoes: { totalVagas: 25, valorAvulso: 20 },
+          configuracoes: { totalVagas: 25, valorAvulso: 30 },
           mensalistas: [],
           avulsos: [],
           comandos: [],   // comandos personalizados criados pelo admin
@@ -175,22 +175,30 @@ confirmarMensalista(telefone, nome, status) {
   // ─── Avulsos ──────────────────────────────────────────────────────────────
 
   addAvulso(telefone, nome, convidadoPor) {
-    const tel = onlyDigits(telefone);
+    // Telefones fictícios (convidados) já chegam como ID único — não aplicar onlyDigits
+    const tel = String(telefone || '').startsWith('conv_')
+      ? String(telefone)
+      : onlyDigits(telefone);
+
+    if (!tel) return { motivo: 'fechado' }; // sem identificador é inválido
 
     if (!this.state.aberto) return { motivo: 'fechado' };
 
-    const ehMensalista = this.state.mensalistas.find(m => m.telefone === tel);
-    if (ehMensalista) return { motivo: 'mensalista' };
+    // Mensalista não pode entrar como avulso (só verifica para telefones reais)
+    if (!tel.startsWith('conv_')) {
+      const ehMensalista = this.state.mensalistas.find(m => m.telefone === tel);
+      if (ehMensalista) return { motivo: 'mensalista' };
+    }
 
     const jaExiste = this.state.avulsos.find(a => a.telefone === tel);
     if (jaExiste) return { repetido: true, jogador: jaExiste };
 
-    // Vagas = total - confirmados - pendentes - avulsos confirmados
-    const mensalistas       = this.state.mensalistas || [];
-    const confirmadosMens   = mensalistas.filter(m => m.status === 'sim').length;
-    const pendentesMens     = mensalistas.filter(m => m.status === 'pendente').length;
-    const confirmadosAvul   = this.state.avulsos.filter(a => a.status === 'confirmado').length;
-    const vagasRestantes    = this.state.configuracoes.totalVagas - confirmadosMens - pendentesMens - confirmadosAvul;
+    // Vagas = total − confirmados − pendentes − avulsos confirmados
+    const mensalistas     = this.state.mensalistas || [];
+    const confirmadosMens = mensalistas.filter(m => m.status === 'sim').length;
+    const pendentesMens   = mensalistas.filter(m => m.status === 'pendente').length;
+    const confirmadosAvul = this.state.avulsos.filter(a => a.status === 'confirmado').length;
+    const vagasRestantes  = this.state.configuracoes.totalVagas - confirmadosMens - pendentesMens - confirmadosAvul;
 
     const jogador = {
       telefone: tel,
