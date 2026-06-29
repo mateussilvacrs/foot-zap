@@ -529,52 +529,40 @@ liberarAvulsos() {
     return this.state.agendamentos.length < antes;
   }
 
-
-  // Retorna agendamentos que devem disparar agora
-  // (chamado a cada minuto pelo scheduler)
+  // Retorna agendamentos que devem disparar agora (chamado a cada minuto pelo scheduler)
   getAgendamentosParaDisparar() {
-    const tz   = process.env.TIMEZONE || 'America/Sao_Paulo';
+    const tz    = process.env.TIMEZONE || 'America/Sao_Paulo';
     const agora = new Date();
 
-    // ── Hora e dia da semana no fuso configurado ──────────────────────────
-    // Usamos toLocaleString com campos individuais para evitar dependência
-    // da ordem de formatToParts (que varia por versão do Node/ICU).
-    const toOpts = campo => ({ timeZone: tz, [campo]: '2-digit', hour12: false });
+    // Extrai hora/minuto/dia no fuso com chamadas individuais (robusto em todas as versões do Node)
+    const hh = String(agora.toLocaleString('en-US', { timeZone: tz, hour:   '2-digit', hour12: false })).replace(/\D/g,'').padStart(2,'0');
+    const mm = String(agora.toLocaleString('en-US', { timeZone: tz, minute: '2-digit', hour12: false })).replace(/\D/g,'').padStart(2,'0');
+    const horaAgora = `${hh}:${mm}`;  // ex: "09:00"
 
-    const hh  = agora.toLocaleString('en-US', { ...toOpts('hour'),   hour12: false }).padStart(2, '0');
-    const mm  = agora.toLocaleString('en-US', { ...toOpts('minute'), hour12: false }).padStart(2, '0');
-    const horaAgora = `${hh}:${mm}`;   // "09:00"
-
-    // Dia da semana como número 0(dom)..6(sab) no fuso correto
     const diaSemStr = agora.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });
-    const diasMap   = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const diasMap   = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
     const diaNum    = diasMap[diaSemStr] ?? agora.getDay();
 
-    // ── ISO local YYYY-MM-DDTHH:MM para comparar agendamentos únicos ─────
-    // Constrói a string de forma confiável sem depender de formatToParts
-    const yyyy = agora.toLocaleString('en-US', { timeZone: tz, year:  'numeric' });
-    const mo   = agora.toLocaleString('en-US', { timeZone: tz, month: '2-digit' });
-    const dd   = agora.toLocaleString('en-US', { timeZone: tz, day:   '2-digit' });
-    // toLocaleString retorna valores com possível trailing space — trim + pad
-    const isoAgora = `${yyyy.trim()}-${mo.trim().padStart(2,'0')}-${dd.trim().padStart(2,'0')}T${horaAgora}`;
-    // ex: "2026-06-29T09:00"
+    // ISO local YYYY-MM-DDTHH:MM para agendamentos únicos
+    const yyyy = String(agora.toLocaleString('en-US', { timeZone: tz, year:  'numeric' })).trim();
+    const mo   = String(agora.toLocaleString('en-US', { timeZone: tz, month: '2-digit' })).trim().padStart(2,'0');
+    const dd   = String(agora.toLocaleString('en-US', { timeZone: tz, day:   '2-digit' })).trim().padStart(2,'0');
+    const isoAgora = `${yyyy}-${mo}-${dd}T${horaAgora}`;
 
     console.log('[SCHED]', { isoAgora, horaAgora, diaNum, tz });
 
-    return this.state.agendamentos.filter(ag => {
+    return (this.state.agendamentos || []).filter(ag => {
       if (!ag.ativo) return false;
 
       if (ag.tipo === 'unico') {
         if (ag.disparado || !ag.dataHora) return false;
-        // dataHora salvo como "2026-06-29T09:00" (ISO local sem timezone)
-        // Dispara se o momento programado já chegou ou passou (dentro de uma janela de 5 min
-        // para cobrir restarts e delays do cron)
+        // Dispara se o horário programado chegou há menos de 5 min (tolera restarts)
         const diff = minutesDiff(ag.dataHora, isoAgora);
-        return diff >= 0 && diff < 5;   // passou mas tem menos de 5 min
+        return diff >= 0 && diff < 5;
       }
 
-      // recorrente: verifica dia da semana e hora exata
-      return ag.diasSemana.includes(diaNum) && ag.hora === horaAgora;
+      // recorrente: dia da semana + hora exata
+      return (ag.diasSemana || []).includes(diaNum) && ag.hora === horaAgora;
     });
   }
 
@@ -589,16 +577,17 @@ liberarAvulsos() {
   }
 }
 
+module.exports = { Database, onlyDigits };
+
 /**
  * Diferença em minutos entre dois strings ISO locais "YYYY-MM-DDTHH:MM".
- * Positivo se target já passou (target <= current), negativo se ainda não chegou.
+ * Retorna positivo se target já passou em relação a current.
  */
 function minutesDiff(target, current) {
-  // Converte "YYYY-MM-DDTHH:MM" → minutos desde epoch local
   const toMin = iso => {
-    const [datePart, timePart] = iso.split('T');
+    const [datePart, timePart = '00:00'] = iso.split('T');
     const [y, mo, d] = datePart.split('-').map(Number);
-    const [h, m]     = (timePart || '00:00').split(':').map(Number);
+    const [h, m]     = timePart.split(':').map(Number);
     return Date.UTC(y, mo - 1, d, h, m) / 60000;
   };
   return toMin(current) - toMin(target);
