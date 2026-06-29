@@ -532,19 +532,32 @@ liberarAvulsos() {
   // Retorna agendamentos recorrentes que devem disparar agora
   // (chamado a cada minuto pelo scheduler)
   getAgendamentosParaDisparar() {
+    const tz     = process.env.TIMEZONE || 'America/Sao_Paulo';
     const agora  = new Date();
-    const hora   = `${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`;
-    const diaSem = agora.getDay(); // 0=dom
-    const isoNow = agora.toISOString().slice(0,16); // 'YYYY-MM-DDTHH:MM'
+
+    // Hora e dia da semana no fuso configurado
+    const fmt    = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz,
+      hour: '2-digit', minute: '2-digit',
+      weekday: 'narrow', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour12: false
+    });
+    const partes = Object.fromEntries(fmt.formatToParts(agora).map(p => [p.type, p.value]));
+
+    const hora   = `${partes.hour}:${partes.minute}`;           // "09:00"
+    const diaSem = agora.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });
+    const diasMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+    const diaNum  = diasMap[diaSem] ?? agora.getDay();
+
+    // Para comparar agendamentos únicos: ISO local no fuso
+    const isoLocal = `${partes.year}-${partes.month}-${partes.day}T${hora}`;
 
     return this.state.agendamentos.filter(ag => {
       if (!ag.ativo) return false;
       if (ag.tipo === 'unico') {
-        // Dispara se ainda não foi disparado e o horário chegou
-        return !ag.disparado && ag.dataHora && ag.dataHora <= isoNow;
+        return !ag.disparado && ag.dataHora && ag.dataHora <= isoLocal;
       }
-      // Recorrente: dia da semana e hora batem
-      return ag.diasSemana.includes(diaSem) && ag.hora === hora;
+      return ag.diasSemana.includes(diaNum) && ag.hora === hora;
     });
   }
 
