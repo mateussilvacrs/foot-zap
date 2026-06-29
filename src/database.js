@@ -529,35 +529,52 @@ liberarAvulsos() {
     return this.state.agendamentos.length < antes;
   }
 
-  // Retorna agendamentos recorrentes que devem disparar agora
+
+  // Retorna agendamentos que devem disparar agora
   // (chamado a cada minuto pelo scheduler)
   getAgendamentosParaDisparar() {
-    const tz     = process.env.TIMEZONE || 'America/Sao_Paulo';
-    const agora  = new Date();
+    const tz   = process.env.TIMEZONE || 'America/Sao_Paulo';
+    const agora = new Date();
 
-    // Hora e dia da semana no fuso configurado
-    const fmt    = new Intl.DateTimeFormat('pt-BR', {
-      timeZone: tz,
-      hour: '2-digit', minute: '2-digit',
-      weekday: 'narrow', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour12: false
-    });
-    const partes = Object.fromEntries(fmt.formatToParts(agora).map(p => [p.type, p.value]));
+    // ── Hora e dia da semana no fuso configurado ──────────────────────────
+    // Usamos toLocaleString com campos individuais para evitar dependência
+    // da ordem de formatToParts (que varia por versão do Node/ICU).
+    const toOpts = campo => ({ timeZone: tz, [campo]: '2-digit', hour12: false });
 
-    const hora   = `${partes.hour}:${partes.minute}`;           // "09:00"
-    const diaSem = agora.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });
-    const diasMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
-    const diaNum  = diasMap[diaSem] ?? agora.getDay();
+    const hh  = agora.toLocaleString('en-US', { ...toOpts('hour'),   hour12: false }).padStart(2, '0');
+    const mm  = agora.toLocaleString('en-US', { ...toOpts('minute'), hour12: false }).padStart(2, '0');
+    const horaAgora = `${hh}:${mm}`;   // "09:00"
 
-    // Para comparar agendamentos únicos: ISO local no fuso
-    const isoLocal = `${partes.year}-${partes.month}-${partes.day}T${hora}`;
+    // Dia da semana como número 0(dom)..6(sab) no fuso correto
+    const diaSemStr = agora.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });
+    const diasMap   = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const diaNum    = diasMap[diaSemStr] ?? agora.getDay();
+
+    // ── ISO local YYYY-MM-DDTHH:MM para comparar agendamentos únicos ─────
+    // Constrói a string de forma confiável sem depender de formatToParts
+    const yyyy = agora.toLocaleString('en-US', { timeZone: tz, year:  'numeric' });
+    const mo   = agora.toLocaleString('en-US', { timeZone: tz, month: '2-digit' });
+    const dd   = agora.toLocaleString('en-US', { timeZone: tz, day:   '2-digit' });
+    // toLocaleString retorna valores com possível trailing space — trim + pad
+    const isoAgora = `${yyyy.trim()}-${mo.trim().padStart(2,'0')}-${dd.trim().padStart(2,'0')}T${horaAgora}`;
+    // ex: "2026-06-29T09:00"
+
+    console.log('[SCHED]', { isoAgora, horaAgora, diaNum, tz });
 
     return this.state.agendamentos.filter(ag => {
       if (!ag.ativo) return false;
+
       if (ag.tipo === 'unico') {
-        return !ag.disparado && ag.dataHora && ag.dataHora <= isoLocal;
+        if (ag.disparado || !ag.dataHora) return false;
+        // dataHora salvo como "2026-06-29T09:00" (ISO local sem timezone)
+        // Dispara se o momento programado já chegou ou passou (dentro de uma janela de 5 min
+        // para cobrir restarts e delays do cron)
+        const diff = minutesDiff(ag.dataHora, isoAgora);
+        return diff >= 0 && diff < 5;   // passou mas tem menos de 5 min
       }
-      return ag.diasSemana.includes(diaNum) && ag.hora === hora;
+
+      // recorrente: verifica dia da semana e hora exata
+      return ag.diasSemana.includes(diaNum) && ag.hora === horaAgora;
     });
   }
 
@@ -572,4 +589,17 @@ liberarAvulsos() {
   }
 }
 
-module.exports = { Database, onlyDigits };
+/**
+ * Diferença em minutos entre dois strings ISO locais "YYYY-MM-DDTHH:MM".
+ * Positivo se target já passou (target <= current), negativo se ainda não chegou.
+ */
+function minutesDiff(target, current) {
+  // Converte "YYYY-MM-DDTHH:MM" → minutos desde epoch local
+  const toMin = iso => {
+    const [datePart, timePart] = iso.split('T');
+    const [y, mo, d] = datePart.split('-').map(Number);
+    const [h, m]     = (timePart || '00:00').split(':').map(Number);
+    return Date.UTC(y, mo - 1, d, h, m) / 60000;
+  };
+  return toMin(current) - toMin(target);
+}
