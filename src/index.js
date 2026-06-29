@@ -335,11 +335,45 @@ app.patch('/api/player/:telefone/status', authMiddleware, async (req, res) => { 
 
 // Remover avulso pelo dashboard
 app.delete('/api/avulso/:telefone', authMiddleware, (req, res) => {
-  const tel = req.params.telefone.replace(/\D/g, '');
+  const tel = decodeURIComponent(req.params.telefone);
   const antes = db.getState().avulsos.length;
   db.getState().avulsos = db.getState().avulsos.filter(a => a.telefone !== tel);
   db.save();
   res.json({ ok: true, removed: db.getState().avulsos.length < antes });
+});
+
+// Alterar status de avulso (confirmado / espera)
+app.patch('/api/avulso/:telefone/status', authMiddleware, (req, res) => {
+  const tel    = decodeURIComponent(req.params.telefone);
+  const status = req.body.status;
+  if (!['confirmado','espera'].includes(status))
+    return res.status(400).json({ error: 'Status inválido. Use confirmado ou espera.' });
+
+  const avulso = db.getState().avulsos.find(a => a.telefone === tel);
+  if (!avulso) return res.status(404).json({ error: 'Avulso não encontrado.' });
+
+  avulso.status = status;
+  db.save();
+  res.json({ ok: true, avulso });
+});
+
+// Atualizar telefone de avulso convidado (conv_...)
+app.patch('/api/avulso/:telefone/telefone', authMiddleware, (req, res) => {
+  const telAtual = decodeURIComponent(req.params.telefone);
+  const novoTel  = String(req.body.telefone || '').replace(/\D/g, '');
+
+  if (!novoTel) return res.status(400).json({ error: 'Telefone inválido.' });
+
+  const avulso = db.getState().avulsos.find(a => a.telefone === telAtual);
+  if (!avulso) return res.status(404).json({ error: 'Avulso não encontrado.' });
+
+  // Verifica se o novo número já está em uso
+  const conflito = db.getState().avulsos.find(a => a.telefone === novoTel && a.telefone !== telAtual);
+  if (conflito) return res.status(400).json({ error: `Telefone já cadastrado para ${conflito.nome}.` });
+
+  avulso.telefone = novoTel;
+  db.save();
+  res.json({ ok: true, avulso });
 });
 
 // Resumo

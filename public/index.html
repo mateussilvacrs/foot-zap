@@ -649,15 +649,23 @@
 
     // Tabela avulsos
     $('tbodyAvulsos').innerHTML = (data.avulsos||[]).length
-      ? data.avulsos.map((j,i) => `<tr>
-          <td style="color:var(--muted)">${i+1}</td>
-          <td>${j.nome}</td>
-          <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
-          <td>${badge(j.status)}</td>
-          <td>
-            ${j.status !== 'espera' ? `<button class="btn-ghost btn-sm" title="Desistir" onclick="desistirAvulso('${j.telefone}','${j.nome}')">🚪</button>` : ''}
-            <button class="btn-ghost btn-sm" onclick="removeAvulso('${j.telefone}')">🗑</button>
-          </td></tr>`).join('')
+      ? data.avulsos.map((j,i) => {
+          const isConvidado = String(j.telefone).startsWith('conv_');
+          const telExibido  = isConvidado
+            ? `<span style="color:var(--amber);font-size:11px">convidado por ${j.convidadoPor||'?'}</span>`
+            : `<span style="font-family:var(--mono);font-size:12px">${j.telefone}</span>`;
+          return `<tr>
+            <td style="color:var(--muted)">${i+1}</td>
+            <td>${j.nome}${isConvidado ? ' <span style="font-size:10px;color:var(--amber)">★</span>' : ''}</td>
+            <td>${telExibido}</td>
+            <td>${badge(j.status)}</td>
+            <td>
+              <button class="btn-ghost btn-sm" title="Confirmar"     onclick="setAvulsoStatus('${j.telefone}','confirmado')">✅</button>
+              <button class="btn-ghost btn-sm" title="Fila de espera" onclick="setAvulsoStatus('${j.telefone}','espera')">⏳</button>
+              ${isConvidado ? `<button class="btn-ghost btn-sm" title="Editar telefone" onclick="editarTelAvulso('${j.telefone}','${j.nome.replace(/'/g,"\\'")}')">📞</button>` : ''}
+              <button class="btn-ghost btn-sm" title="Remover" onclick="removeAvulso('${j.telefone}')">🗑</button>
+            </td></tr>`;
+        }).join('')
       : '<tr><td colspan="5" class="empty">Nenhum avulso ainda.</td></tr>';
   }
 
@@ -668,6 +676,22 @@
   window.desistirAvulso = (tel, nome) => {
     if(!confirm(`Registrar desistência de ${nome}?`)) return;
     action(() => api(`/api/avulso/${tel}/desistir`,{method:'POST'}), `Desistência de ${nome} registrada.`);
+  };
+
+  // Muda status de avulso (confirmado ↔ espera)
+  window.setAvulsoStatus = (tel, status) =>
+    action(() => api(`/api/avulso/${encodeURIComponent(tel)}/status`, { method:'PATCH', body:{ status } }), 'Status atualizado.');
+
+  // Edita telefone de avulso convidado (conv_...)
+  window.editarTelAvulso = (telAtual, nome) => {
+    const novoTel = prompt(`Telefone de ${nome} (somente números, com DDI):`, '');
+    if (novoTel === null) return;
+    const tel = novoTel.replace(/\D/g,'');
+    if (!tel) { toast('Telefone inválido.','err'); return; }
+    action(
+      () => api(`/api/avulso/${encodeURIComponent(telAtual)}/telefone`, { method:'PATCH', body:{ telefone: tel } }),
+      `Telefone de ${nome} atualizado!`
+    );
   };
 
   // ── Seleção múltipla de mensalistas ───────────────────────────────────────
