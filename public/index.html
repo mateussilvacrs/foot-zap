@@ -566,8 +566,12 @@
 
       <!-- Campos único -->
       <div id="camposUnico" style="display:none">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Data e hora de disparo</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
+          Data e hora de disparo
+          <span style="color:var(--amber);font-weight:600"> ⏰ horário de Brasília (BRT)</span>
+        </div>
         <input id="agDataHora" type="datetime-local" style="max-width:240px" />
+        <div id="agDataHoraBRT" style="font-size:11px;color:var(--green);margin-top:4px;display:none"></div>
       </div>
 
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
@@ -1240,7 +1244,7 @@
       const ags = await api('/api/agendamentos');
       $('tbodyAg').innerHTML = ags.length ? ags.map(ag => {
         const quando = ag.tipo === 'unico'
-          ? `📅 ${ag.dataHora ? new Date(ag.dataHora).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '—'}`
+          ? `📅 ${ag.dataHora ? (() => { const [dp,tp]=ag.dataHora.split('T'); const [y,mo,d]=dp.split('-'); return `${d}/${mo}/${y} ${tp} BRT`; })() : '—'}`
           : `🔁 ${ag.diasSemana.map(d=>DIAS_LABEL[d]).join(', ')} às ${ag.hora}`;
         const ultimo = ag.ultimoDisparo
           ? new Date(ag.ultimoDisparo).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})
@@ -1305,6 +1309,8 @@
     } else {
       const dh = $('agDataHora').value;
       if (!dh) { toast('Selecione a data e hora.','err'); return; }
+      // O valor do input é lido como se fosse BRT (o label avisa o usuário)
+      // Salvamos diretamente — o backend compara em BRT
       body.dataHora = dh;
     }
 
@@ -1315,7 +1321,46 @@
     });
   });
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── Agendamentos: preenche datetime-local com hora atual de Brasília ────────
+  (function initDatetimeBRT() {
+    const TZ = 'America/Sao_Paulo';
+
+    function nowBRT() {
+      // Retorna "YYYY-MM-DDTHH:MM" no fuso de Brasília
+      const now = new Date();
+      const y  = now.toLocaleString('en-US', { timeZone: TZ, year:   'numeric' }).trim();
+      const mo = now.toLocaleString('en-US', { timeZone: TZ, month:  '2-digit' }).trim().padStart(2,'0');
+      const d  = now.toLocaleString('en-US', { timeZone: TZ, day:    '2-digit' }).trim().padStart(2,'0');
+      const hh = now.toLocaleString('en-US', { timeZone: TZ, hour:   '2-digit', hour12:false }).replace(/\D/g,'').padStart(2,'0');
+      const mm = now.toLocaleString('en-US', { timeZone: TZ, minute: '2-digit', hour12:false }).replace(/\D/g,'').padStart(2,'0');
+      return `${y}-${mo}-${d}T${hh}:${mm}`;
+    }
+
+    function showPreview(val) {
+      const el = $('agDataHoraBRT');
+      if (!val) { el.style.display='none'; return; }
+      // Exibe confirmação do que será disparado
+      const [datePart, timePart] = val.split('T');
+      const [y,mo,d] = datePart.split('-');
+      el.textContent = `✅ Disparo em: ${d}/${mo}/${y} às ${timePart} (horário de Brasília)`;
+      el.style.display = 'block';
+    }
+
+    // Ao abrir o painel de agendamento único, pré-preenche com agora em BRT
+    const observer = new MutationObserver(() => {
+      const el = $('camposUnico');
+      if (el && el.style.display !== 'none' && !$('agDataHora').value) {
+        $('agDataHora').value = nowBRT();
+        showPreview($('agDataHora').value);
+      }
+    });
+    const camposUnico = $('camposUnico');
+    if (camposUnico) observer.observe(camposUnico, { attributes: true, attributeFilter: ['style'] });
+
+    // Atualiza preview ao digitar
+    const inp = $('agDataHora');
+    if (inp) inp.addEventListener('input', () => showPreview(inp.value));
+  })();
   load();
   loadComandos();
   loadAdmins();
@@ -1328,5 +1373,5 @@
   setInterval(loadAgendamentos, 20000);
 </script>
 </body>
-<footer>0.05</footer>
+<footer>0.08</footer>
 </html>
