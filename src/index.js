@@ -335,45 +335,11 @@ app.patch('/api/player/:telefone/status', authMiddleware, async (req, res) => { 
 
 // Remover avulso pelo dashboard
 app.delete('/api/avulso/:telefone', authMiddleware, (req, res) => {
-  const tel = decodeURIComponent(req.params.telefone);
+  const tel = req.params.telefone.replace(/\D/g, '');
   const antes = db.getState().avulsos.length;
   db.getState().avulsos = db.getState().avulsos.filter(a => a.telefone !== tel);
   db.save();
   res.json({ ok: true, removed: db.getState().avulsos.length < antes });
-});
-
-// Alterar status de avulso (confirmado / espera)
-app.patch('/api/avulso/:telefone/status', authMiddleware, (req, res) => {
-  const tel    = decodeURIComponent(req.params.telefone);
-  const status = req.body.status;
-  if (!['confirmado','espera'].includes(status))
-    return res.status(400).json({ error: 'Status inválido. Use confirmado ou espera.' });
-
-  const avulso = db.getState().avulsos.find(a => a.telefone === tel);
-  if (!avulso) return res.status(404).json({ error: 'Avulso não encontrado.' });
-
-  avulso.status = status;
-  db.save();
-  res.json({ ok: true, avulso });
-});
-
-// Atualizar telefone de avulso convidado (conv_...)
-app.patch('/api/avulso/:telefone/telefone', authMiddleware, (req, res) => {
-  const telAtual = decodeURIComponent(req.params.telefone);
-  const novoTel  = String(req.body.telefone || '').replace(/\D/g, '');
-
-  if (!novoTel) return res.status(400).json({ error: 'Telefone inválido.' });
-
-  const avulso = db.getState().avulsos.find(a => a.telefone === telAtual);
-  if (!avulso) return res.status(404).json({ error: 'Avulso não encontrado.' });
-
-  // Verifica se o novo número já está em uso
-  const conflito = db.getState().avulsos.find(a => a.telefone === novoTel && a.telefone !== telAtual);
-  if (conflito) return res.status(400).json({ error: `Telefone já cadastrado para ${conflito.nome}.` });
-
-  avulso.telefone = novoTel;
-  db.save();
-  res.json({ ok: true, avulso });
 });
 
 // Resumo
@@ -531,6 +497,41 @@ app.post('/api/comandos/:id/resetar', authMiddleware, (req, res) => {
 app.delete('/api/comandos/:id', authMiddleware, (req, res) => {
   const removed = db.removeComando(req.params.id);
   res.json({ ok: removed });
+});
+
+// ─── Agendamentos ─────────────────────────────────────────────────────────────
+app.get('/api/agendamentos', authMiddleware, (req, res) => {
+  res.json(db.getAgendamentos());
+});
+
+app.post('/api/agendamentos', authMiddleware, (req, res) => {
+  try {
+    const ag = db.addAgendamento(req.body);
+    res.status(201).json(ag);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch('/api/agendamentos/:id', authMiddleware, (req, res) => {
+  const ag = db.updateAgendamento(req.params.id, req.body);
+  if (!ag) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+  res.json(ag);
+});
+
+app.delete('/api/agendamentos/:id', authMiddleware, (req, res) => {
+  const removed = db.removeAgendamento(req.params.id);
+  res.json({ ok: removed });
+});
+
+// Disparo manual imediato pelo dashboard
+app.post('/api/agendamentos/:id/disparar', authMiddleware, async (req, res) => {
+  const { executarAgendamento } = require('./scheduler');
+  const ag = db.getAgendamentos().find(a => a.id === req.params.id);
+  if (!ag) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+  try {
+    await executarAgendamento(ag, db, whatsapp);
+    db.registrarDisparo(ag.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

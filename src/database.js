@@ -24,15 +24,16 @@ class Database {
           configuracoes: { totalVagas: 25, valorAvulso: 30 },
           mensalistas: [],
           avulsos: [],
-          comandos: [],   // comandos personalizados criados pelo admin
-          admins: [],     // admins dinâmicos além dos do .env
-          mensais: []     // cadastro de jogadores mensais (pendente pagamento → aprovado → mensalista)
+          comandos: [],
+          admins: [],
+          mensais: [],
+          agendamentos: []
         };
 
-    // Migração de versões antigas
-    if (!this.state.comandos) { this.state.comandos = []; this.save(); }
-    if (!this.state.admins)   { this.state.admins = [];   this.save(); }
-    if (!this.state.mensais)  { this.state.mensais = [];  this.save(); }
+    if (!this.state.comandos)     { this.state.comandos     = []; this.save(); }
+    if (!this.state.admins)       { this.state.admins       = []; this.save(); }
+    if (!this.state.mensais)      { this.state.mensais      = []; this.save(); }
+    if (!this.state.agendamentos) { this.state.agendamentos = []; this.save(); }
   }
 
   save() {
@@ -58,11 +59,7 @@ class Database {
     const espera      = (this.state.avulsos || []).filter(a => a.status === 'espera');
 
     const totalOcupado = confirmados.length + avulsos.length;
-
-    // Vagas restantes = total - confirmados - pendentes - avulsos confirmados
-    // Pendentes "reservam" vaga até responderem, para não lotar com avulsos
-    const vagasReservadas = confirmados.length + pendentes.length + avulsos.length;
-    const vagasRestantes  = Math.max(0, this.state.configuracoes.totalVagas - vagasReservadas);
+    const vagasRestantes = Math.max(0, this.state.configuracoes.totalVagas - totalOcupado);
 
     return {
       rodada: this.state.rodada,
@@ -174,37 +171,26 @@ confirmarMensalista(telefone, nome, status) {
 
   // ─── Avulsos ──────────────────────────────────────────────────────────────
 
-  addAvulso(telefone, nome, convidadoPor) {
-    // Telefones fictícios (convidados) já chegam como ID único — não aplicar onlyDigits
-    const tel = String(telefone || '').startsWith('conv_')
-      ? String(telefone)
-      : onlyDigits(telefone);
-
-    if (!tel) return { motivo: 'fechado' }; // sem identificador é inválido
+  addAvulso(telefone, nome) {
+    const tel = onlyDigits(telefone);
 
     if (!this.state.aberto) return { motivo: 'fechado' };
 
-    // Mensalista não pode entrar como avulso (só verifica para telefones reais)
-    if (!tel.startsWith('conv_')) {
-      const ehMensalista = this.state.mensalistas.find(m => m.telefone === tel);
-      if (ehMensalista) return { motivo: 'mensalista' };
-    }
+    const ehMensalista = this.state.mensalistas.find(m => m.telefone === tel);
+    if (ehMensalista) return { motivo: 'mensalista' };
 
     const jaExiste = this.state.avulsos.find(a => a.telefone === tel);
     if (jaExiste) return { repetido: true, jogador: jaExiste };
 
-    // Vagas = total − confirmados − pendentes − avulsos confirmados
-    const mensalistas     = this.state.mensalistas || [];
-    const confirmadosMens = mensalistas.filter(m => m.status === 'sim').length;
-    const pendentesMens   = mensalistas.filter(m => m.status === 'pendente').length;
-    const confirmadosAvul = this.state.avulsos.filter(a => a.status === 'confirmado').length;
-    const vagasRestantes  = this.state.configuracoes.totalVagas - confirmadosMens - pendentesMens - confirmadosAvul;
+    const { confirmados } = this.resumo();
+    const avulsosConfirmados = this.state.avulsos.filter(a => a.status === 'confirmado');
+    const totalOcupado = confirmados.length + avulsosConfirmados.length;
+    const vagasRestantes = this.state.configuracoes.totalVagas - totalOcupado;
 
     const jogador = {
       telefone: tel,
       nome: nome?.trim() || 'Sem nome',
-      status: vagasRestantes > 0 ? 'confirmado' : 'espera',
-      ...(convidadoPor ? { convidadoPor } : {})
+      status: vagasRestantes > 0 ? 'confirmado' : 'espera'
     };
 
     this.state.avulsos.push(jogador);
@@ -462,46 +448,114 @@ confirmarMensalista(telefone, nome, status) {
    */
 liberarAvulsos() {
     const { configuracoes, mensalistas, avulsos } = this.state;
-    const confirmadosMens = mensalistas.filter(m => m.status === 'sim').length;
-    const pendentesMens   = mensalistas.filter(m => m.status === 'pendente').length;
-    // Pendentes ainda reservam vaga — avulsos só preenchem o que sobrou
-    let slots = configuracoes.totalVagas - confirmadosMens - pendentesMens;
-    const promovidos = [];
+    const confirmadosMensalistas = mensalistas.filter(m => m.status === 'sim').length;
+    let slots = configuracoes.totalVagas - confirmadosMensalistas;
+    const promovidos = []; // Guarda quem saiu da espera
 
     for (const a of avulsos) {
       if (a.status === 'confirmado') { slots--; continue; }
-      if (a.status === 'espera' && slots > 0) {
-        a.status = 'confirmado';
-        slots--;
-        promovidos.push(a);
+      if (a.status === 'espera' && slots > 0) { 
+        a.status = 'confirmado'; 
+        slots--; 
+        promovidos.push(a); // Adiciona na lista de notificação
       }
     }
     this.save();
     return promovidos;
   }
 
-  /**
-   * Remove avulso por nome (busca parcial, case-insensitive).
-   * Retorna { removido, jogador, promovido }
-   */
-  removeAvulsoPorNome(nomeParcial) {
-    const busca = nomeParcial.toLowerCase().trim();
-    const idx = this.state.avulsos.findIndex(a => a.nome.toLowerCase().includes(busca));
-    if (idx === -1) return { removido: false };
+  // ─── Agendamentos ──────────────────────────────────────────────────────────
+  //
+  // Cada agendamento:
+  // {
+  //   id, ativo, nome,
+  //   tipo: 'unico' | 'recorrente',
+  //
+  //   -- único: dispara uma vez numa data/hora específica
+  //   dataHora: '2026-06-30T09:00',   // ISO local
+  //   disparado: false,
+  //
+  //   -- recorrente: expressão cron simplificada via campos
+  //   diasSemana: [1,3,5],            // 0=dom … 6=sab
+  //   hora: '09:00',
+  //
+  //   -- conteúdo
+  //   conteudo: 'mensagem livre' | 'lista' | 'resumo' | 'convocar',
+  //   mensagem: 'texto...',           // só para conteudo='mensagem livre'
+  //   mencionar: false,               // @todos
+  //   destino: 'grupo' | 'admins',    // admins = mensagem privada p/ cada admin
+  // }
 
-    const [jogador] = this.state.avulsos.splice(idx, 1);
-    let promovido = null;
+  getAgendamentos() {
+    return this.state.agendamentos || [];
+  }
 
-    if (jogador.status === 'confirmado') {
-      const proxEspera = this.state.avulsos.find(a => a.status === 'espera');
-      if (proxEspera) {
-        proxEspera.status = 'confirmado';
-        promovido = proxEspera;
-      }
-    }
-
+  addAgendamento(dados) {
+    const ag = {
+      id: Date.now().toString(),
+      ativo: true,
+      nome: dados.nome || 'Sem nome',
+      tipo: dados.tipo || 'recorrente',       // 'unico' | 'recorrente'
+      // único
+      dataHora: dados.dataHora || null,
+      disparado: false,
+      // recorrente
+      diasSemana: dados.diasSemana || [],     // array de 0-6
+      hora: dados.hora || '09:00',
+      // conteúdo
+      conteudo: dados.conteudo || 'mensagem livre',
+      mensagem: dados.mensagem || '',
+      mencionar: Boolean(dados.mencionar),
+      destino: dados.destino || 'grupo',
+      criadoEm: new Date().toISOString()
+    };
+    this.state.agendamentos.push(ag);
     this.save();
-    return { removido: true, jogador, promovido };
+    return ag;
+  }
+
+  updateAgendamento(id, campos) {
+    const ag = this.state.agendamentos.find(a => a.id === id);
+    if (!ag) return null;
+    Object.assign(ag, campos);
+    this.save();
+    return ag;
+  }
+
+  removeAgendamento(id) {
+    const antes = this.state.agendamentos.length;
+    this.state.agendamentos = this.state.agendamentos.filter(a => a.id !== id);
+    this.save();
+    return this.state.agendamentos.length < antes;
+  }
+
+  // Retorna agendamentos recorrentes que devem disparar agora
+  // (chamado a cada minuto pelo scheduler)
+  getAgendamentosParaDisparar() {
+    const agora  = new Date();
+    const hora   = `${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`;
+    const diaSem = agora.getDay(); // 0=dom
+    const isoNow = agora.toISOString().slice(0,16); // 'YYYY-MM-DDTHH:MM'
+
+    return this.state.agendamentos.filter(ag => {
+      if (!ag.ativo) return false;
+      if (ag.tipo === 'unico') {
+        // Dispara se ainda não foi disparado e o horário chegou
+        return !ag.disparado && ag.dataHora && ag.dataHora <= isoNow;
+      }
+      // Recorrente: dia da semana e hora batem
+      return ag.diasSemana.includes(diaSem) && ag.hora === hora;
+    });
+  }
+
+  marcarDisparado(id) {
+    const ag = this.state.agendamentos.find(a => a.id === id);
+    if (ag) { ag.disparado = true; ag.ultimoDisparo = new Date().toISOString(); this.save(); }
+  }
+
+  registrarDisparo(id) {
+    const ag = this.state.agendamentos.find(a => a.id === id);
+    if (ag) { ag.ultimoDisparo = new Date().toISOString(); this.save(); }
   }
 }
 

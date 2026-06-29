@@ -503,6 +503,86 @@
     </table>
   </div>
 
+  <!-- Mensagens Agendadas -->
+  <div class="panel">
+    <h2>📅 Mensagens Agendadas</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:16px">
+      Configure mensagens automáticas — únicas (disparam uma vez numa data) ou recorrentes (toda semana em dias/horários fixos).
+    </p>
+
+    <!-- Formulário de criação -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <input id="agNome"    placeholder="Nome do agendamento (ex: Convocação segunda)" />
+        <select id="agTipo" style="background:var(--surface);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px">
+          <option value="recorrente">🔁 Recorrente</option>
+          <option value="unico">1️⃣ Único (uma vez)</option>
+        </select>
+        <select id="agDestino" style="background:var(--surface);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px">
+          <option value="grupo">📢 Grupo</option>
+          <option value="admins">👑 Admins (privado)</option>
+        </select>
+      </div>
+
+      <!-- Campos recorrente -->
+      <div id="camposRecorrente">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Dias da semana</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i) =>
+            `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface);border:1px solid var(--border);padding:4px 8px;border-radius:6px">
+              <input type="checkbox" class="chkDia" value="${i}"/> ${d}
+            </label>`
+          ).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Horário</div>
+            <input id="agHora" type="time" value="09:00" />
+          </div>
+          <div style="font-size:11px;color:var(--muted)">Selecione os dias e horário em que a mensagem será enviada toda semana.</div>
+        </div>
+      </div>
+
+      <!-- Campos único -->
+      <div id="camposUnico" style="display:none">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Data e hora de disparo</div>
+        <input id="agDataHora" type="datetime-local" style="max-width:240px" />
+      </div>
+
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Conteúdo</div>
+          <select id="agConteudo" style="background:var(--surface);border:1px solid var(--border);color:var(--ink);border-radius:6px;padding:8px 11px;font-size:13px;width:100%">
+            <option value="mensagem livre">💬 Mensagem livre</option>
+            <option value="convocar">📣 Convocação</option>
+            <option value="lista">📋 Lista da rodada</option>
+            <option value="resumo">📊 Resumo</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:6px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding-bottom:8px">
+            <input type="checkbox" id="agMencionar"/> @todos
+          </label>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn-green" id="btnAddAg" style="width:100%">+ Criar</button>
+        </div>
+      </div>
+
+      <div id="camposMensagemAg" style="margin-top:8px;display:none">
+        <textarea id="agMensagem" placeholder="Texto da mensagem…" style="min-height:60px"></textarea>
+      </div>
+    </div>
+
+    <!-- Lista de agendamentos -->
+    <table>
+      <thead>
+        <tr><th>Nome</th><th>Tipo</th><th>Quando</th><th>Conteúdo</th><th>Destino</th><th>Último disparo</th><th>Ativo</th><th></th></tr>
+      </thead>
+      <tbody id="tbodyAg"></tbody>
+    </table>
+  </div>
+
 </main>
 
 <!-- Modal de edição de comando -->
@@ -649,23 +729,15 @@
 
     // Tabela avulsos
     $('tbodyAvulsos').innerHTML = (data.avulsos||[]).length
-      ? data.avulsos.map((j,i) => {
-          const isConvidado = String(j.telefone).startsWith('conv_');
-          const telExibido  = isConvidado
-            ? `<span style="color:var(--amber);font-size:11px">convidado por ${j.convidadoPor||'?'}</span>`
-            : `<span style="font-family:var(--mono);font-size:12px">${j.telefone}</span>`;
-          return `<tr>
-            <td style="color:var(--muted)">${i+1}</td>
-            <td>${j.nome}${isConvidado ? ' <span style="font-size:10px;color:var(--amber)">★</span>' : ''}</td>
-            <td>${telExibido}</td>
-            <td>${badge(j.status)}</td>
-            <td>
-              <button class="btn-ghost btn-sm" title="Confirmar"     onclick="setAvulsoStatus('${j.telefone}','confirmado')">✅</button>
-              <button class="btn-ghost btn-sm" title="Fila de espera" onclick="setAvulsoStatus('${j.telefone}','espera')">⏳</button>
-              ${isConvidado ? `<button class="btn-ghost btn-sm" title="Editar telefone" onclick="editarTelAvulso('${j.telefone}','${j.nome.replace(/'/g,"\\'")}')">📞</button>` : ''}
-              <button class="btn-ghost btn-sm" title="Remover" onclick="removeAvulso('${j.telefone}')">🗑</button>
-            </td></tr>`;
-        }).join('')
+      ? data.avulsos.map((j,i) => `<tr>
+          <td style="color:var(--muted)">${i+1}</td>
+          <td>${j.nome}</td>
+          <td style="font-family:var(--mono);font-size:12px">${j.telefone}</td>
+          <td>${badge(j.status)}</td>
+          <td>
+            ${j.status !== 'espera' ? `<button class="btn-ghost btn-sm" title="Desistir" onclick="desistirAvulso('${j.telefone}','${j.nome}')">🚪</button>` : ''}
+            <button class="btn-ghost btn-sm" onclick="removeAvulso('${j.telefone}')">🗑</button>
+          </td></tr>`).join('')
       : '<tr><td colspan="5" class="empty">Nenhum avulso ainda.</td></tr>';
   }
 
@@ -676,22 +748,6 @@
   window.desistirAvulso = (tel, nome) => {
     if(!confirm(`Registrar desistência de ${nome}?`)) return;
     action(() => api(`/api/avulso/${tel}/desistir`,{method:'POST'}), `Desistência de ${nome} registrada.`);
-  };
-
-  // Muda status de avulso (confirmado ↔ espera)
-  window.setAvulsoStatus = (tel, status) =>
-    action(() => api(`/api/avulso/${encodeURIComponent(tel)}/status`, { method:'PATCH', body:{ status } }), 'Status atualizado.');
-
-  // Edita telefone de avulso convidado (conv_...)
-  window.editarTelAvulso = (telAtual, nome) => {
-    const novoTel = prompt(`Telefone de ${nome} (somente números, com DDI):`, '');
-    if (novoTel === null) return;
-    const tel = novoTel.replace(/\D/g,'');
-    if (!tel) { toast('Telefone inválido.','err'); return; }
-    action(
-      () => api(`/api/avulso/${encodeURIComponent(telAtual)}/telefone`, { method:'PATCH', body:{ telefone: tel } }),
-      `Telefone de ${nome} atualizado!`
-    );
   };
 
   // ── Seleção múltipla de mensalistas ───────────────────────────────────────
@@ -1141,15 +1197,114 @@
       .then(()=>{clearCmdForm();loadComandos();});
   });
 
+  // ── Agendamentos ──────────────────────────────────────────────────────────
+
+  const DIAS_LABEL = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const CONTEUDO_LABEL = { 'mensagem livre':'💬 Mensagem', convocar:'📣 Convocar', lista:'📋 Lista', resumo:'📊 Resumo' };
+
+  // Alterna campos de tipo
+  $('agTipo').addEventListener('change', () => {
+    const rec = $('agTipo').value === 'recorrente';
+    $('camposRecorrente').style.display = rec ? 'block' : 'none';
+    $('camposUnico').style.display      = rec ? 'none'  : 'block';
+  });
+
+  // Mostra textarea de mensagem livre
+  $('agConteudo').addEventListener('change', () => {
+    $('camposMensagemAg').style.display = $('agConteudo').value === 'mensagem livre' ? 'block' : 'none';
+  });
+
+  async function loadAgendamentos() {
+    try {
+      const ags = await api('/api/agendamentos');
+      $('tbodyAg').innerHTML = ags.length ? ags.map(ag => {
+        const quando = ag.tipo === 'unico'
+          ? `📅 ${ag.dataHora ? new Date(ag.dataHora).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '—'}`
+          : `🔁 ${ag.diasSemana.map(d=>DIAS_LABEL[d]).join(', ')} às ${ag.hora}`;
+        const ultimo = ag.ultimoDisparo
+          ? new Date(ag.ultimoDisparo).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})
+          : '—';
+        const conteudo = ag.conteudo === 'mensagem livre'
+          ? `💬 ${(ag.mensagem||'').slice(0,40)}${(ag.mensagem||'').length>40?'…':''}`
+          : (CONTEUDO_LABEL[ag.conteudo] || ag.conteudo);
+        const disparadoBadge = ag.tipo==='unico' && ag.disparado
+          ? '<span style="font-size:10px;color:var(--muted)">✓ disparado</span>' : '';
+
+        return `<tr>
+          <td>${ag.nome} ${disparadoBadge}</td>
+          <td style="font-size:12px">${ag.tipo==='unico'?'1️⃣ Único':'🔁 Rec.'}</td>
+          <td style="font-size:12px">${quando}</td>
+          <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${conteudo}</td>
+          <td style="font-size:12px">${ag.destino==='admins'?'👑 Admins':'📢 Grupo'}${ag.mencionar?' @todos':''}</td>
+          <td style="font-size:11px;color:var(--muted)">${ultimo}</td>
+          <td>
+            <button class="btn-ghost btn-sm" onclick="toggleAg('${ag.id}',${!ag.ativo})" title="${ag.ativo?'Pausar':'Ativar'}">
+              ${ag.ativo?'🟢':'⚫'}
+            </button>
+          </td>
+          <td>
+            <button class="btn-blue btn-sm"  onclick="dispararAg('${ag.id}')" title="Disparar agora">▶</button>
+            <button class="btn-ghost btn-sm" onclick="deleteAg('${ag.id}')" title="Excluir">🗑</button>
+          </td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="8" class="empty">Nenhum agendamento criado ainda.</td></tr>';
+    } catch(e) { /* sem auth */ }
+  }
+
+  window.toggleAg = (id, ativo) =>
+    action(()=>api(`/api/agendamentos/${id}`,{method:'PATCH',body:{ativo}}),
+           ativo?'Agendamento ativado.':'Agendamento pausado.').then(loadAgendamentos);
+
+  window.deleteAg = id => {
+    if(!confirm('Excluir este agendamento?')) return;
+    action(()=>api(`/api/agendamentos/${id}`,{method:'DELETE'}),'Agendamento excluído.').then(loadAgendamentos);
+  };
+
+  window.dispararAg = id =>
+    action(()=>api(`/api/agendamentos/${id}/disparar`,{method:'POST'}),'Mensagem enviada!').then(loadAgendamentos);
+
+  $('btnAddAg').addEventListener('click', () => {
+    const nome     = $('agNome').value.trim();
+    const tipo     = $('agTipo').value;
+    const destino  = $('agDestino').value;
+    const conteudo = $('agConteudo').value;
+    const mensagem = $('agMensagem').value.trim();
+    const mencionar= $('agMencionar').checked;
+
+    if (!nome) { toast('Digite um nome para o agendamento.','err'); return; }
+    if (conteudo==='mensagem livre' && !mensagem) { toast('Digite o texto da mensagem.','err'); return; }
+
+    const body = { nome, tipo, destino, conteudo, mensagem, mencionar };
+
+    if (tipo === 'recorrente') {
+      const dias = [...document.querySelectorAll('.chkDia:checked')].map(c=>Number(c.value));
+      if (!dias.length) { toast('Selecione ao menos um dia da semana.','err'); return; }
+      body.diasSemana = dias;
+      body.hora = $('agHora').value;
+    } else {
+      const dh = $('agDataHora').value;
+      if (!dh) { toast('Selecione a data e hora.','err'); return; }
+      body.dataHora = dh;
+    }
+
+    action(()=>api('/api/agendamentos',{method:'POST',body}),`Agendamento "${nome}" criado!`).then(()=>{
+      $('agNome').value=''; $('agMensagem').value=''; $('agMencionar').checked=false;
+      document.querySelectorAll('.chkDia').forEach(c=>c.checked=false);
+      loadAgendamentos();
+    });
+  });
+
   // ── Init ──────────────────────────────────────────────────────────────────
   load();
   loadComandos();
   loadAdmins();
   loadMensais();
+  loadAgendamentos();
   setInterval(load, 10000);
   setInterval(loadComandos, 15000);
   setInterval(loadAdmins, 30000);
   setInterval(loadMensais, 20000);
+  setInterval(loadAgendamentos, 20000);
 </script>
 </body>
 <footer>0.03</footer>
